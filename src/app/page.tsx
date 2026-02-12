@@ -1,103 +1,111 @@
-import Image from "next/image";
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import RoomList from '@/components/rooms/RoomList'
+import CollectionList from '@/components/CollectionList'
+import DocumentTable from '@/components/documents/DocumentTable'
+import AuditViewer from '@/components/AuditViewer'
+import { LogOut } from 'lucide-react'
+import { jwtDecode } from 'jwt-decode'
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const router = useRouter()
+  const [token, setToken] = useState<string | null>(null)
+  const [roomId, setRoomId] = useState<string | null>(null)
+  const [collection, setCollection] = useState<string | null>(null)
+  const [tab, setTab] = useState<'data' | 'audit'>('data')
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  useEffect(() => {
+    const t = localStorage.getItem('token')
+    if (!t) {
+      router.replace('/login')
+      return
+    }
+
+    try {
+      const decoded: any = jwtDecode(t)
+      if (decoded.exp * 1000 < Date.now()) {
+        localStorage.removeItem('token')
+        router.replace('/login')
+      } else {
+        setToken(t)
+      }
+    } catch {
+      localStorage.removeItem('token')
+      router.replace('/login')
+    }
+  }, [])
+
+  useEffect(() => {
+    if (tab === 'data') {
+      setRoomId(null)
+      setCollection(null)
+    }
+  }, [tab])
+
+  useEffect(() => {
+    document.body.style.pointerEvents = "auto"
+  }, [])
+
+  if (!token) return null
+
+  const handleLogout = () => {
+    localStorage.removeItem('token')
+    setToken(null)
+    setRoomId(null)
+    setCollection(null)
+    router.replace('/login')
+  }
+
+  return (
+    <div className="h-screen flex flex-col">
+      <div className="flex items-center justify-between border-b p-2">
+        <div className="flex gap-2">
+          <Button
+            variant={tab === 'data' ? 'default' : 'ghost'}
+            onClick={() => setTab('data')}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Data
+          </Button>
+          <Button
+            variant={tab === 'audit' ? 'default' : 'ghost'}
+            onClick={() => setTab('audit')}
           >
-            Read our docs
-          </a>
+            Audit
+          </Button>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        <Button variant="destructive" onClick={handleLogout}>
+          <LogOut className="w-4 h-4 mr-1" />
+          Logout
+        </Button>
+      </div>
+
+      <div className="flex flex-1 overflow-hidden">
+        {tab === 'data' && (
+          <>
+            <RoomList activeRoomId={roomId} onSelect={setRoomId} />
+            {roomId && (
+              <CollectionList
+                roomId={roomId}
+                activeCollection={collection}
+                onSelect={setCollection}
+              />
+            )}
+            {roomId && collection && (
+              <DocumentTable roomId={roomId} collection={collection} />
+            )}
+          </>
+        )}
+
+        {tab === 'audit' && (
+          <div className="flex-1 overflow-auto">
+            <AuditViewer />
+          </div>
+        )}
+      </div>
     </div>
-  );
+  )
 }
