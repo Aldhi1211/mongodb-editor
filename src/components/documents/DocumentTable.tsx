@@ -32,7 +32,6 @@ export default function DocumentTable({ roomId, collection }: any) {
   const [isJsonViewOpen, setIsJsonViewOpen] = useState(false);
   const [contextRow, setContextRow] = useState<any>(null);
   const [menuPos, setMenuPos] = useState<any>(null);
-  const [query, setQuery] = useState("{}");
   const [loading, setLoading] = useState(false);
 
   type Operator = "is" | "regex" | "gt" | "lt";
