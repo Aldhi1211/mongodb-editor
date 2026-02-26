@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { SidebarProvider } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/app-sidebar"
-import { cookies } from "next/headers"
+import { SidebarProvider } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
+import { cookies } from "next/headers";
 import { NavBarMenu } from "@/components/navbar";
 
 const geistSans = Geist({
@@ -26,8 +26,7 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-
-  const cookieStore = await cookies()
+  const cookieStore = await cookies();
   const sidebarState = cookieStore.get("sidebar_state")?.value;
 
   // buka HANYA kalau cookie-nya bernilai "true"
