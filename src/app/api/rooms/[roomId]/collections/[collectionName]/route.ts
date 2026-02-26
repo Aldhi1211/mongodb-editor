@@ -130,18 +130,17 @@ export async function POST(
   });
 }
 
-type Params = {
-  roomId: string;
-  collectionName: string;
-};
-
-export async function DELETE(req: NextRequest, context: { params: Params }) {
+export async function DELETE(
+  req: NextRequest,
+  context: { params: Promise<{ roomId: string; collectionName: string }> },
+) {
   const user = await getUser(req);
+
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { roomId, collectionName } = context.params;
+  const { roomId, collectionName } = await context.params;
 
   if (!collectionName) {
     return NextResponse.json(
