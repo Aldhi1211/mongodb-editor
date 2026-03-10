@@ -6,7 +6,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { MoreVertical } from "lucide-react";
 import { useState } from "react";
 import { useRooms } from "./useRooms";
-import { useRouter } from "next/navigation";
 import CreateRoomDialog from "./CreateRoomDialog";
 import InviteUserDialog from "./InviteUserDialog";
 import InviteStatusDialog from "./InviteStatusDialog";
@@ -31,7 +30,6 @@ export default function RoomList({ onSelect, activeRoomId }: RoomListProps) {
     type: "success" | "error";
     msg: string;
   } | null>(null);
-  const router = useRouter();
 
   return (
     <Card className="w-64 h-full rounded-none border-r">
@@ -79,7 +77,7 @@ export default function RoomList({ onSelect, activeRoomId }: RoomListProps) {
                       });
 
                       if (res.ok) {
-                        router.refresh();
+                        reload();
                       }
                     }}
                   >
