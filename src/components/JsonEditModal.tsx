@@ -9,13 +9,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import Editor from "@monaco-editor/react";
-import {
-  parseShellStringToEjson,
-  toShellString,
-  safeParse,
-} from "@/lib/ejsonShell";
-import { parse, ParseError } from "jsonc-parser";
 import { EJSON } from "bson";
+import { ObjectId } from "bson";
 
 export default function JsonEditModal({
   open,
@@ -33,6 +28,22 @@ export default function JsonEditModal({
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  function getIdValue(id: any): string | null {
+    if (!id) return null;
+
+    // Kalau ObjectId instance
+    if (id instanceof ObjectId) {
+      return id.toHexString();
+    }
+
+    // Kalau Extended JSON
+    if (id.$oid) {
+      return id.$oid;
+    }
+
+    return null;
+  }
 
   const normalizeId = (id: any) => {
     if (id === undefined) return undefined;
@@ -68,8 +79,8 @@ export default function JsonEditModal({
     }
 
     // Protect _id
-    const originalId = normalizeId(document?._id);
-    const parsedId = normalizeId(parsed?._id);
+    const originalId = getIdValue(document?._id);
+    const parsedId = getIdValue(parsed?._id);
 
     if (!isNew && originalId && parsedId && parsedId !== originalId) {
       setError("_id cannot be modified");
