@@ -3,33 +3,33 @@ import { EJSON } from "bson";
 
 export function useDocuments(roomId: string, collection: string) {
   const [data, setData] = useState<any[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const limit = 20;
   const token = () => localStorage.getItem("token");
 
-  const fetchData = async () => {
-    const res = await fetch(`/api/rooms/${roomId}/collections/${collection}`, {
-      headers: { Authorization: `Bearer ${token()}` },
-    });
+  const fetchData = async (p = page) => {
+    const res = await fetch(
+      `/api/rooms/${roomId}/collections/${collection}?page=${p}&limit=${limit}`,
+      { headers: { Authorization: `Bearer ${token()}` } },
+    );
     const json = await res.json();
     setData(json.data || []);
+    setTotal(json.total || 0);
   };
 
-  const queryData = async (filter: any) => {
+  const queryData = async (filter: any, p = 1) => {
     const encodedFilter = encodeURIComponent(
       EJSON.stringify(filter, { relaxed: false }),
     );
-
     const res = await fetch(
-      `/api/rooms/${roomId}/collections/${collection}?filter=${encodedFilter}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token()}`,
-        },
-      },
+      `/api/rooms/${roomId}/collections/${collection}?filter=${encodedFilter}&page=${p}&limit=${limit}`,
+      { headers: { Authorization: `Bearer ${token()}` } },
     );
-
     const json = await res.json();
-
     setData(json.data || []);
+    setTotal(json.total || 0);
+    setPage(p);
   };
 
   const createDoc = (payload: any) =>
@@ -58,22 +58,28 @@ export function useDocuments(roomId: string, collection: string) {
       headers: { Authorization: `Bearer ${token()}` },
     });
 
-  // === REALTIME STREAM ===
   useEffect(() => {
-    // 1. LOAD AWAL
-    fetchData();
+    setPage(1);
+    fetchData(1);
 
-    // 2. SUBSCRIBE REALTIME
     const es = new EventSource(
       `/api/rooms/${roomId}/collections/${collection}/stream`,
     );
-
-    es.onmessage = () => {
-      fetchData();
-    };
+    es.onmessage = () => fetchData(page);
 
     return () => es.close();
   }, [roomId, collection]);
 
-  return { data, fetchData, queryData, createDoc, updateDoc, deleteDoc };
+  return {
+    data,
+    fetchData,
+    queryData,
+    createDoc,
+    updateDoc,
+    deleteDoc,
+    page,
+    setPage,
+    total,
+    limit,
+  };
 }

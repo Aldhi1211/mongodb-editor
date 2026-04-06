@@ -1,11 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { MoreVertical, RefreshCcw } from 'lucide-react'
+import { RefreshCcw } from 'lucide-react'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -24,18 +20,25 @@ type Props = {
     activeCollection: string | null
 }
 
-export default function CollectionList({
-    roomId,
-    onSelect,
-    activeCollection
-}: Props) {
+export default function CollectionList({ roomId, onSelect, activeCollection }: Props) {
     const [collections, setCollections] = useState<Collection[]>([])
     const [search, setSearch] = useState('')
     const [loading, setLoading] = useState(false)
 
+    const loadCollections = async () => {
+        try {
+            const res = await fetch(`/api/rooms/${roomId}/collections`, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            })
+            const data = await res.json()
+            setCollections(Array.isArray(data) ? data : [])
+        } catch {
+            setCollections([])
+        }
+    }
+
     useEffect(() => {
         let cancelled = false
-
         const load = async () => {
             try {
                 const res = await fetch(`/api/rooms/${roomId}/collections`, {
@@ -47,7 +50,6 @@ export default function CollectionList({
                 if (!cancelled) setCollections([])
             }
         }
-
         load()
         return () => { cancelled = true }
     }, [roomId])
@@ -61,95 +63,76 @@ export default function CollectionList({
     }, [collections, search])
 
     return (
-        <Card className="w-64 h-full rounded-none border-r">
-            <CardContent className="p-3">
-                <div className="flex items-center justify-between mb-2">
-                    <h2 className="font-semibold">Collections</h2>
+        <div className="w-[210px] flex-shrink-0 flex flex-col border-r border-gray-200 bg-white overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-3.5 h-[41px] border-b border-gray-200 flex-shrink-0">
+                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-[0.05em]">Collections</span>
+                <button
+                    onClick={async () => {
+                        setLoading(true)
+                        try { await loadCollections() } finally { setLoading(false) }
+                    }}
+                    className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                >
+                    <RefreshCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                </button>
+            </div>
 
-                    <Button
-                        size="icon"
-                        variant="ghost"
-                        disabled={loading}
-                        onClick={async () => {
-                            try {
-                                setLoading(true)
-                                const res = await fetch(`/api/rooms/${roomId}/collections`, {
-                                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-                                })
-                                const data = await res.json()
-                                setCollections(Array.isArray(data) ? data : [])
-                            } finally {
-                                setLoading(false)
-                            }
-                        }}
-                    >
-                        <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                    </Button>
-                </div>
-
-                <Input
+            {/* Search */}
+            <div className="px-2.5 py-2 border-b border-gray-200 flex-shrink-0">
+                <input
                     placeholder="Search collection..."
                     value={search}
                     onChange={e => setSearch(e.target.value)}
-                    className="mb-2"
+                    className="w-full px-2 py-1 rounded-md border border-gray-200 bg-gray-50 text-[12px] text-gray-700 outline-none focus:border-gray-400"
                 />
+            </div>
 
-                <ScrollArea className="h-[calc(100vh-170px)]">
-                    {filtered.map(col => {
-                        const active = col.name === activeCollection
-
-                        return (
-                            <div key={col.name} className="flex items-center">
-                                <Button
-                                    variant="ghost"
-                                    className={`flex-1 justify-start overflow-hidden ${active ? "bg-black text-white hover:bg-black hover:text-white font-semibold" : ""}`}
-                                    onClick={() => onSelect(col.name)}
-                                >
-                                    <span className="max-w-[160px] truncate">
-                                        {col.name}
-                                    </span>
-                                </Button>
-
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button size="icon" variant="ghost">
-                                            <MoreVertical className="w-4 h-4" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                        <DropdownMenuItem
-                                            className="text-red-600"
-                                            onClick={async () => {
-                                                const ok = confirm(`Delete collection "${col.name}"? This cannot be undone.`)
-                                                if (!ok) return
-
-                                                await fetch(
-                                                    `/api/rooms/${roomId}/collections/${encodeURIComponent(col.name)}`,
-                                                    {
-                                                        method: 'DELETE',
-                                                        headers: {
-                                                            Authorization: `Bearer ${localStorage.getItem('token')}`
-                                                        }
-                                                    }
-                                                )
-
-                                                // reload list
-                                                const res = await fetch(`/api/rooms/${roomId}/collections`, {
-                                                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-                                                })
-                                                const data = await res.json()
-                                                setCollections(Array.isArray(data) ? data : [])
-                                            }}
-                                        >
-                                            Delete
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </div>
-                        )
-                    })}
-                </ScrollArea>
-            </CardContent>
-        </Card>
+            {/* List */}
+            <div className="flex-1 overflow-y-auto">
+                {filtered.map(col => {
+                    const active = col.name === activeCollection
+                    return (
+                        <div
+                            key={col.name}
+                            className={`flex items-center justify-between px-3 py-2 border-b border-gray-100 cursor-pointer
+                                ${active ? 'bg-[#111]' : 'hover:bg-gray-50'}`}
+                            onClick={() => onSelect(col.name)}
+                        >
+                            <span className={`text-[12px] font-mono truncate flex-1 ${active ? 'text-white' : 'text-gray-800'}`}>
+                                {col.name}
+                            </span>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <button
+                                        className={`text-[14px] leading-none px-0.5 cursor-pointer ${active ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        ⋯
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem
+                                        className="text-red-600"
+                                        onClick={async (e) => {
+                                            e.stopPropagation()
+                                            const ok = confirm(`Delete collection "${col.name}"? This cannot be undone.`)
+                                            if (!ok) return
+                                            await fetch(
+                                                `/api/rooms/${roomId}/collections/${encodeURIComponent(col.name)}`,
+                                                { method: 'DELETE', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+                                            )
+                                            await loadCollections()
+                                        }}
+                                    >
+                                        Delete
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+                    )
+                })}
+            </div>
+        </div>
     )
 }

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import RoomList from "@/components/rooms/RoomList";
 import CollectionList from "@/components/CollectionList";
 import DocumentTable from "@/components/documents/DocumentTable";
@@ -19,11 +18,7 @@ export default function Home() {
 
   useEffect(() => {
     const t = localStorage.getItem("token");
-    if (!t) {
-      router.replace("/login");
-      return;
-    }
-
+    if (!t) { router.replace("/login"); return; }
     try {
       const decoded: any = jwtDecode(t);
       if (decoded.exp * 1000 < Date.now()) {
@@ -39,10 +34,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (tab === "data") {
-      setRoomId(null);
-      setCollection(null);
-    }
+    if (tab === "data") { setRoomId(null); setCollection(null); }
   }, [tab]);
 
   useEffect(() => {
@@ -60,29 +52,31 @@ export default function Home() {
   };
 
   return (
-    <div className="h-screen flex flex-col">
-      <div className="flex items-center justify-between border-b p-2">
-        <div className="flex gap-2">
-          <Button
-            variant={tab === "data" ? "default" : "ghost"}
-            onClick={() => setTab("data")}
-          >
-            Data
-          </Button>
-          <Button
-            variant={tab === "audit" ? "default" : "ghost"}
-            onClick={() => setTab("audit")}
-          >
-            Audit
-          </Button>
+    <div className="h-screen flex flex-col bg-white overflow-hidden">
+      {/* Topbar */}
+      <div className="flex items-center justify-between px-4 h-11 bg-[#111] flex-shrink-0">
+        <div className="flex gap-1">
+          {(["data", "audit"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-4 py-1.5 rounded-md text-[12px] font-medium capitalize cursor-pointer transition-colors
+                ${tab === t ? "bg-white text-[#111]" : "text-[#aaa] hover:text-white"}`}
+            >
+              {t.charAt(0).toUpperCase() + t.slice(1)}
+            </button>
+          ))}
         </div>
-
-        <Button variant="destructive" onClick={handleLogout}>
-          <LogOut className="w-4 h-4 mr-1" />
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-1.5 bg-[#ee0033] text-white px-3.5 py-1.5 rounded-md text-[12px] cursor-pointer hover:bg-[#cc0029] transition-colors"
+        >
+          <LogOut className="w-3 h-3" />
           Logout
-        </Button>
+        </button>
       </div>
 
+      {/* Main */}
       <div className="flex flex-1 overflow-hidden">
         {tab === "data" && (
           <>
@@ -99,7 +93,6 @@ export default function Home() {
             )}
           </>
         )}
-
         {tab === "audit" && (
           <div className="flex-1 overflow-auto">
             <AuditViewer />
