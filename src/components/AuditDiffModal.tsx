@@ -1,8 +1,18 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { compare } from 'fast-json-patch'
+import Editor from '@monaco-editor/react'
+import { EJSON } from 'bson'
+
+function toFormattedJson(data: any): string {
+    try {
+        const raw = EJSON.stringify(data ?? {})
+        return JSON.stringify(JSON.parse(raw), null, 2)
+    } catch {
+        return '{}'
+    }
+}
 
 export default function AuditDiffModal({
     open,
@@ -13,48 +23,64 @@ export default function AuditDiffModal({
     onClose: () => void
     log: any
 }) {
-    if (!log) return null
+    const [beforeValue, setBeforeValue] = useState('')
+    const [afterValue, setAfterValue] = useState('')
 
-    const patches = compare(log.before || {}, log.after || {})
+    useEffect(() => {
+        if (!log) return
+        setBeforeValue(toFormattedJson(log.before))
+        setAfterValue(toFormattedJson(log.after))
+    }, [log, open])
+
+    if (!log) return null
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl">
+            <DialogContent
+                className="!max-w-none"
+                style={{ width: '95vw', height: '90vh' }}
+            >
                 <DialogHeader>
                     <DialogTitle>Audit Diff</DialogTitle>
                 </DialogHeader>
 
-                <ScrollArea className="max-h-[70vh]">
-                    <div className="space-y-2 text-sm font-mono">
-                        {patches.map((p, i) => {
-                            const isRemove = p.op === 'remove'
-                            const isAdd = p.op === 'add'
-                            const isReplace = p.op === 'replace'
-
-                            return (
-                                <div
-                                    key={i}
-                                    className={`p-2 rounded max-w-full overflow-hidden ${isAdd
-                                        ? 'bg-green-100 text-green-800'
-                                        : isRemove
-                                            ? 'bg-red-100 text-red-800 line-through'
-                                            : 'bg-yellow-100 text-yellow-800'
-                                        }`}
-                                >
-                                    <div>
-                                        <strong>{p.op.toUpperCase()}</strong> {p.path}
-                                    </div>
-
-                                    {isAdd || isReplace ? (
-                                        <pre className="text-xs opacity-80 whitespace-pre-wrap break-all overflow-x-auto max-w-full">
-                                            New: {JSON.stringify((p as any).value, null, 2)}
-                                        </pre>
-                                    ) : null}
-                                </div>
-                            )
-                        })}
+                <div className="flex gap-2 flex-1 overflow-hidden" style={{ height: '75vh' }}>
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                        <div className="text-xs font-semibold text-red-600 mb-1 px-1">Before</div>
+                        <div className="flex-1 border rounded overflow-hidden">
+                            <Editor
+                                height="100%"
+                                defaultLanguage="json"
+                                value={beforeValue}
+                                options={{
+                                    readOnly: true,
+                                    minimap: { enabled: false },
+                                    fontSize: 13,
+                                    automaticLayout: true,
+                                    scrollBeyondLastLine: false,
+                                }}
+                            />
+                        </div>
                     </div>
-                </ScrollArea>
+
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                        <div className="text-xs font-semibold text-green-600 mb-1 px-1">After</div>
+                        <div className="flex-1 border rounded overflow-hidden">
+                            <Editor
+                                height="100%"
+                                defaultLanguage="json"
+                                value={afterValue}
+                                options={{
+                                    readOnly: true,
+                                    minimap: { enabled: false },
+                                    fontSize: 13,
+                                    automaticLayout: true,
+                                    scrollBeyondLastLine: false,
+                                }}
+                            />
+                        </div>
+                    </div>
+                </div>
             </DialogContent>
         </Dialog>
     )
