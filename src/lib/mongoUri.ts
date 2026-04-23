@@ -7,6 +7,22 @@ export type MongoConfig = {
     authDb: string
 }
 
+export function parseMongoUri(uri: string): MongoConfig {
+    try {
+        const url = new URL(uri)
+        return {
+            host: url.hostname,
+            port: url.port || '27017',
+            database: url.pathname.replace(/^\//, ''),
+            username: decodeURIComponent(url.username || ''),
+            password: decodeURIComponent(url.password || ''),
+            authDb: url.searchParams.get('authSource') || 'admin',
+        }
+    } catch {
+        return { host: '', port: '27017', database: '', username: '', password: '', authDb: 'admin' }
+    }
+}
+
 export function buildMongoUri(cfg: MongoConfig) {
     const creds = cfg.username
         ? `${encodeURIComponent(cfg.username)}:${encodeURIComponent(cfg.password)}@`

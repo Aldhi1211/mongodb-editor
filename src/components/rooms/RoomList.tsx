@@ -6,6 +6,7 @@ import CreateRoomDialog from "./CreateRoomDialog";
 import InviteUserDialog from "./InviteUserDialog";
 import InviteStatusDialog from "./InviteStatusDialog";
 import RoomMembersModal from "./RoomMembersModal";
+import EditRoomDialog from "./EditRoomDialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +27,7 @@ export default function RoomList({ onSelect, activeRoomId }: RoomListProps) {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [status, setStatus] = useState<{ type: "success" | "error"; msg: string } | null>(null);
   const [membersRoom, setMembersRoom] = useState<{ id: string; name: string } | null>(null);
+  const [editRoom, setEditRoom] = useState<{ id: string; name: string } | null>(null);
 
   return (
     <div className="w-[180px] flex-shrink-0 flex flex-col border-r border-gray-200 bg-gray-50 overflow-hidden">
@@ -65,6 +67,19 @@ export default function RoomList({ onSelect, activeRoomId }: RoomListProps) {
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditRoom({ id: room._id, name: room.name });
+                    }}
+                  >
+                    <svg className="w-3.5 h-3.5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                    Edit
+                  </DropdownMenuItem>
+
                   {/* Anggota — paling atas */}
                   <DropdownMenuItem
                     onClick={(e) => {
@@ -138,6 +153,12 @@ export default function RoomList({ onSelect, activeRoomId }: RoomListProps) {
         onClose={() => setMembersRoom(null)}
         roomId={membersRoom?.id ?? ""}
         roomName={membersRoom?.name ?? ""}
+      />
+      <EditRoomDialog
+        open={!!editRoom}
+        onClose={() => setEditRoom(null)}
+        onUpdated={reload}
+        room={editRoom}
       />
     </div>
   );
