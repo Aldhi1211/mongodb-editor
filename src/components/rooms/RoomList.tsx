@@ -5,10 +5,12 @@ import { useRooms } from "./useRooms";
 import CreateRoomDialog from "./CreateRoomDialog";
 import InviteUserDialog from "./InviteUserDialog";
 import InviteStatusDialog from "./InviteStatusDialog";
+import RoomMembersModal from "./RoomMembersModal";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -23,6 +25,7 @@ export default function RoomList({ onSelect, activeRoomId }: RoomListProps) {
   const [inviteRoomId, setInviteRoomId] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [status, setStatus] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [membersRoom, setMembersRoom] = useState<{ id: string; name: string } | null>(null);
 
   return (
     <div className="w-[180px] flex-shrink-0 flex flex-col border-r border-gray-200 bg-gray-50 overflow-hidden">
@@ -48,7 +51,10 @@ export default function RoomList({ onSelect, activeRoomId }: RoomListProps) {
                 ${isActive ? "bg-[#111]" : "hover:bg-white"}`}
               onClick={() => onSelect(room._id)}
             >
-              <span className={`text-[13px] truncate flex-1 ${isActive ? "text-white font-medium" : "text-gray-800"}`}>{room.name}</span>
+              <span className={`text-[13px] truncate flex-1 ${isActive ? "text-white font-medium" : "text-gray-800"}`}>
+                {room.name}
+              </span>
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
@@ -59,6 +65,22 @@ export default function RoomList({ onSelect, activeRoomId }: RoomListProps) {
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  {/* Anggota — paling atas */}
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMembersRoom({ id: room._id, name: room.name });
+                    }}
+                  >
+                    <svg className="w-3.5 h-3.5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                      <circle cx="9" cy="7" r="4"/>
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                    Anggota
+                  </DropdownMenuItem>
+
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();
@@ -66,10 +88,19 @@ export default function RoomList({ onSelect, activeRoomId }: RoomListProps) {
                       setInviteOpen(true);
                     }}
                   >
+                    <svg className="w-3.5 h-3.5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                      <circle cx="8.5" cy="7" r="4"/>
+                      <line x1="20" y1="8" x2="20" y2="14"/>
+                      <line x1="23" y1="11" x2="17" y2="11"/>
+                    </svg>
                     Invite
                   </DropdownMenuItem>
+
+                  <DropdownMenuSeparator />
+
                   <DropdownMenuItem
-                    className="text-red-600"
+                    className="text-red-600 focus:text-red-600"
                     onClick={async (e) => {
                       e.stopPropagation();
                       await fetch(`/api/rooms/${room._id}`, {
@@ -79,6 +110,12 @@ export default function RoomList({ onSelect, activeRoomId }: RoomListProps) {
                       reload();
                     }}
                   >
+                    <svg className="w-3.5 h-3.5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="3 6 5 6 21 6"/>
+                      <path d="M19 6l-1 14H6L5 6"/>
+                      <path d="M10 11v6M14 11v6"/>
+                      <path d="M9 6V4h6v2"/>
+                    </svg>
                     Delete
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -96,6 +133,12 @@ export default function RoomList({ onSelect, activeRoomId }: RoomListProps) {
         onResult={(type, msg) => setStatus({ type, msg })}
       />
       <InviteStatusDialog status={status} onClose={() => setStatus(null)} />
+      <RoomMembersModal
+        open={!!membersRoom}
+        onClose={() => setMembersRoom(null)}
+        roomId={membersRoom?.id ?? ""}
+        roomName={membersRoom?.name ?? ""}
+      />
     </div>
   );
 }
