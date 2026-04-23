@@ -44,15 +44,15 @@ export default function RoomList({ onSelect, activeRoomId }: RoomListProps) {
           return (
             <div
               key={room._id}
-              className={`flex items-center justify-between px-3.5 py-2 cursor-pointer
-                ${isActive ? "bg-white" : "hover:bg-white"}`}
+              className={`flex items-center justify-between px-3.5 py-2 cursor-pointer transition-colors
+                ${isActive ? "bg-[#111]" : "hover:bg-white"}`}
               onClick={() => onSelect(room._id)}
             >
-              <span className="text-[13px] text-gray-800 truncate flex-1">{room.name}</span>
+              <span className={`text-[13px] truncate flex-1 ${isActive ? "text-white font-medium" : "text-gray-800"}`}>{room.name}</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className="text-gray-400 hover:text-gray-600 text-[15px] leading-none px-0.5 cursor-pointer"
+                    className={`text-[15px] leading-none px-0.5 cursor-pointer ${isActive ? "text-gray-400 hover:text-gray-200" : "text-gray-400 hover:text-gray-600"}`}
                     onClick={(e) => e.stopPropagation()}
                   >
                     ⋯
