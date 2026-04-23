@@ -33,6 +33,7 @@ export default function DocumentTable({ roomId, collection }: any) {
   const [selectedDoc, setSelectedDoc] = useState<any>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [isJsonViewOpen, setIsJsonViewOpen] = useState(false);
+  const [viewDoc, setViewDoc] = useState<any>(null);
   const [contextRow, setContextRow] = useState<any>(null);
   const [menuPos, setMenuPos] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -282,6 +283,7 @@ export default function DocumentTable({ roomId, collection }: any) {
           await deleteDoc(getEjsonIdString(contextRow?._id));
           await fetchData();
         }}
+        onView={() => setViewDoc(contextRow)}
         onUpdate={() => { setSelectedDoc(contextRow); setIsEditorOpen(true); }}
         onRefresh={fetchData}
         onClose={() => { setMenuPos(null); setContextRow(null); }}
@@ -298,6 +300,7 @@ export default function DocumentTable({ roomId, collection }: any) {
       )}
 
       <JsonViewerModal open={isJsonViewOpen} onClose={setIsJsonViewOpen} data={data} />
+      <JsonViewerModal open={!!viewDoc} onClose={() => setViewDoc(null)} data={viewDoc} />
     </div>
   );
 }
