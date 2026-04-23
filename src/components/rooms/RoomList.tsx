@@ -153,6 +153,7 @@ export default function RoomList({ onSelect, activeRoomId }: RoomListProps) {
         onClose={() => setMembersRoom(null)}
         roomId={membersRoom?.id ?? ""}
         roomName={membersRoom?.name ?? ""}
+        onExited={() => { setMembersRoom(null); reload(); }}
       />
       <EditRoomDialog
         open={!!editRoom}

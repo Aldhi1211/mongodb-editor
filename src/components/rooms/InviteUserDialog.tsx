@@ -45,7 +45,7 @@ export default function InviteUserDialog({
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent>
+            <DialogContent onCloseAutoFocus={() => { document.body.style.pointerEvents = 'auto' }}>
                 <DialogHeader>
                     <DialogTitle>Invite User</DialogTitle>
                 </DialogHeader>
@@ -54,7 +54,7 @@ export default function InviteUserDialog({
                 <Select value={role} onValueChange={setRole}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="owner">Owner</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
                         <SelectItem value="editor">Editor</SelectItem>
                         <SelectItem value="viewer">Viewer</SelectItem>
                     </SelectContent>

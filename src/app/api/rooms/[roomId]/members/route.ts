@@ -49,6 +49,51 @@ export async function GET(
   return NextResponse.json(enriched);
 }
 
+// PATCH — transfer ownership
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ roomId: string }> },
+) {
+  const { roomId } = await context.params;
+  const user = getUser(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { targetUserId } = await req.json();
+  if (!targetUserId) return NextResponse.json({ error: "targetUserId required" }, { status: 400 });
+
+  const client = await clientPromise;
+  const coreDb = client.db("workflowbuilder_core");
+
+  const room = await coreDb.collection("rooms").findOne({ _id: new ObjectId(roomId) });
+  if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
+
+  const me = room.members.find((m: any) => m.userId === user.userId);
+  if (!me || me.role !== "owner") {
+    return NextResponse.json({ error: "Forbidden: only owner can transfer ownership" }, { status: 403 });
+  }
+
+  const target = room.members.find((m: any) => m.userId === targetUserId);
+  if (!target) return NextResponse.json({ error: "Member not found" }, { status: 404 });
+
+  await coreDb.collection("rooms").updateOne(
+    { _id: new ObjectId(roomId) },
+    {
+      $set: {
+        "members.$[owner].role": "admin",
+        "members.$[target].role": "owner",
+      },
+    },
+    {
+      arrayFilters: [
+        { "owner.userId": user.userId },
+        { "target.userId": targetUserId },
+      ],
+    },
+  );
+
+  return NextResponse.json({ success: true });
+}
+
 // DELETE — kick a member
 export async function DELETE(
   req: NextRequest,
@@ -68,15 +113,27 @@ export async function DELETE(
   if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
 
   const me = room.members.find((m: any) => m.userId === user.userId);
-  if (!me || (me.role !== "owner" && me.role !== "admin")) {
-    return NextResponse.json({ error: "Forbidden: only owner/admin can kick" }, { status: 403 });
+  if (!me) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const isSelf = targetUserId === user.userId;
+
+  // Self-exit: anyone can leave except the owner
+  if (isSelf) {
+    if (me.role === "owner") {
+      return NextResponse.json({ error: "Owner cannot leave — transfer ownership first" }, { status: 403 });
+    }
+  } else {
+    // Kicking someone else: only owner/admin
+    if (me.role !== "owner" && me.role !== "admin") {
+      return NextResponse.json({ error: "Forbidden: only owner/admin can kick" }, { status: 403 });
+    }
   }
 
   const target = room.members.find((m: any) => m.userId === targetUserId);
   if (!target) return NextResponse.json({ error: "Member not found" }, { status: 404 });
 
-  // Owner cannot be kicked
-  if (target.role === "owner") {
+  // Owner cannot be kicked by others
+  if (!isSelf && target.role === "owner") {
     return NextResponse.json({ error: "Cannot kick the owner" }, { status: 403 });
   }
 
