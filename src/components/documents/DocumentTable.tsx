@@ -28,6 +28,7 @@ export default function DocumentTable({ roomId, collection }: any) {
     setPage,
     total,
     limit,
+    isFetching,
   } = useDocuments(roomId, collection);
 
   const [selectedDoc, setSelectedDoc] = useState<any>(null);
@@ -153,12 +154,14 @@ export default function DocumentTable({ roomId, collection }: any) {
                   value={filter.value}
                   onChange={(e) => updateFilter(index, "value", e.target.value)}
                 />
-                <button
-                  className="px-2 py-1.5 rounded-md border border-red-200 text-[12px] text-red-500 hover:bg-red-50 cursor-pointer"
-                  onClick={() => setFilters(filters.filter((_, i) => i !== index))}
-                >
-                  ✕
-                </button>
+                {filters.length > 1 && (
+                  <button
+                    className="px-2 py-1.5 rounded-md border border-red-200 text-[12px] text-red-500 hover:bg-red-50 cursor-pointer"
+                    onClick={() => setFilters(filters.filter((_, i) => i !== index))}
+                  >
+                    ✕
+                  </button>
+                )}
                 {isLast && (
                   <>
                     <button
@@ -205,7 +208,12 @@ export default function DocumentTable({ roomId, collection }: any) {
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto min-h-0">
+      <div className="flex-1 overflow-auto min-h-0 relative">
+        {isFetching && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/60 z-20">
+            <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-700 rounded-full animate-spin" />
+          </div>
+        )}
         <table className="border-collapse text-[12px] font-mono min-w-max w-full">
           <thead className="sticky top-0 z-10">
             <tr>

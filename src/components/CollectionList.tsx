@@ -8,6 +8,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 
 type Collection = {
     name: string
@@ -40,6 +41,7 @@ export default function CollectionList({ roomId, onSelect, activeCollection }: P
     useEffect(() => {
         let cancelled = false
         const load = async () => {
+            setLoading(true)
             try {
                 const res = await fetch(`/api/rooms/${roomId}/collections`, {
                     headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
@@ -48,6 +50,8 @@ export default function CollectionList({ roomId, onSelect, activeCollection }: P
                 if (!cancelled) setCollections(Array.isArray(data) ? data : [])
             } catch {
                 if (!cancelled) setCollections([])
+            } finally {
+                if (!cancelled) setLoading(false)
             }
         }
         load()
@@ -90,7 +94,12 @@ export default function CollectionList({ roomId, onSelect, activeCollection }: P
 
             {/* List */}
             <div className="flex-1 overflow-y-auto">
-                {filtered.map(col => {
+                {loading && (
+                    <div className="flex items-center justify-center py-8">
+                        <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                    </div>
+                )}
+                {!loading && filtered.map(col => {
                     const active = col.name === activeCollection
                     return (
                         <div
@@ -99,9 +108,16 @@ export default function CollectionList({ roomId, onSelect, activeCollection }: P
                                 ${active ? 'bg-[#111]' : 'hover:bg-gray-50'}`}
                             onClick={() => onSelect(col.name)}
                         >
-                            <span className={`text-[12px] font-mono truncate flex-1 ${active ? 'text-white' : 'text-gray-800'}`}>
-                                {col.name}
-                            </span>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span className={`text-[12px] font-mono truncate flex-1 ${active ? 'text-white' : 'text-gray-800'}`}>
+                                        {col.name}
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" className="font-mono text-[11px]">
+                                    {col.name}
+                                </TooltipContent>
+                            </Tooltip>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <button

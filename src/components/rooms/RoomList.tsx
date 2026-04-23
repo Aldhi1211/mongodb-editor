@@ -22,6 +22,7 @@ type RoomListProps = {
 
 export default function RoomList({ onSelect, activeRoomId }: RoomListProps) {
   const { rooms, reload } = useRooms();
+  const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [inviteRoomId, setInviteRoomId] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -42,9 +43,19 @@ export default function RoomList({ onSelect, activeRoomId }: RoomListProps) {
         </button>
       </div>
 
+      {/* Search */}
+      <div className="px-2.5 py-2 border-b border-gray-200 flex-shrink-0">
+        <input
+          placeholder="Search room..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-full px-2 py-1 rounded-md border border-gray-200 bg-white text-[12px] text-gray-700 outline-none focus:border-gray-400"
+        />
+      </div>
+
       {/* List */}
       <div className="flex-1 overflow-y-auto py-1">
-        {rooms.map((room) => {
+        {rooms.filter(r => r.name.toLowerCase().includes(search.toLowerCase())).map((room) => {
           const isActive = room._id === activeRoomId;
           return (
             <div

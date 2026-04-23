@@ -5,31 +5,42 @@ export function useDocuments(roomId: string, collection: string) {
   const [data, setData] = useState<any[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [isFetching, setIsFetching] = useState(false);
   const limit = 20;
   const token = () => localStorage.getItem("token");
 
   const fetchData = async (p = page) => {
-    const res = await fetch(
-      `/api/rooms/${roomId}/collections/${collection}?page=${p}&limit=${limit}`,
-      { headers: { Authorization: `Bearer ${token()}` } },
-    );
-    const json = await res.json();
-    setData(json.data || []);
-    setTotal(json.total || 0);
+    setIsFetching(true);
+    try {
+      const res = await fetch(
+        `/api/rooms/${roomId}/collections/${collection}?page=${p}&limit=${limit}`,
+        { headers: { Authorization: `Bearer ${token()}` } },
+      );
+      const json = await res.json();
+      setData(json.data || []);
+      setTotal(json.total || 0);
+    } finally {
+      setIsFetching(false);
+    }
   };
 
   const queryData = async (filter: any, p = 1) => {
-    const encodedFilter = encodeURIComponent(
-      EJSON.stringify(filter, { relaxed: false }),
-    );
-    const res = await fetch(
-      `/api/rooms/${roomId}/collections/${collection}?filter=${encodedFilter}&page=${p}&limit=${limit}`,
-      { headers: { Authorization: `Bearer ${token()}` } },
-    );
-    const json = await res.json();
-    setData(json.data || []);
-    setTotal(json.total || 0);
-    setPage(p);
+    setIsFetching(true);
+    try {
+      const encodedFilter = encodeURIComponent(
+        EJSON.stringify(filter, { relaxed: false }),
+      );
+      const res = await fetch(
+        `/api/rooms/${roomId}/collections/${collection}?filter=${encodedFilter}&page=${p}&limit=${limit}`,
+        { headers: { Authorization: `Bearer ${token()}` } },
+      );
+      const json = await res.json();
+      setData(json.data || []);
+      setTotal(json.total || 0);
+      setPage(p);
+    } finally {
+      setIsFetching(false);
+    }
   };
 
   const createDoc = (payload: any) =>
@@ -81,5 +92,6 @@ export function useDocuments(roomId: string, collection: string) {
     setPage,
     total,
     limit,
+    isFetching,
   };
 }
