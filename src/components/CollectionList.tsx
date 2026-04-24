@@ -9,6 +9,7 @@ import {
     DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
+import ConfirmDialog from "@/components/ui/ConfirmDialog"
 
 type Collection = {
     name: string
@@ -25,6 +26,8 @@ export default function CollectionList({ roomId, onSelect, activeCollection }: P
     const [collections, setCollections] = useState<Collection[]>([])
     const [search, setSearch] = useState('')
     const [loading, setLoading] = useState(false)
+    const [deleteCol, setDeleteCol] = useState<string | null>(null)
+    const [deleting, setDeleting] = useState(false)
 
     const loadCollections = async () => {
         try {
@@ -67,6 +70,7 @@ export default function CollectionList({ roomId, onSelect, activeCollection }: P
     }, [collections, search])
 
     return (
+        <>
         <div className="w-[210px] flex-shrink-0 flex flex-col border-r border-gray-200 bg-white overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between px-3.5 h-[41px] border-b border-gray-200 flex-shrink-0">
@@ -130,15 +134,9 @@ export default function CollectionList({ roomId, onSelect, activeCollection }: P
                                 <DropdownMenuContent align="end">
                                     <DropdownMenuItem
                                         className="text-red-600"
-                                        onClick={async (e) => {
+                                        onClick={(e) => {
                                             e.stopPropagation()
-                                            const ok = confirm(`Delete collection "${col.name}"? This cannot be undone.`)
-                                            if (!ok) return
-                                            await fetch(
-                                                `/api/rooms/${roomId}/collections/${encodeURIComponent(col.name)}`,
-                                                { method: 'DELETE', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
-                                            )
-                                            await loadCollections()
+                                            setDeleteCol(col.name)
                                         }}
                                     >
                                         Delete
@@ -150,5 +148,29 @@ export default function CollectionList({ roomId, onSelect, activeCollection }: P
                 })}
             </div>
         </div>
+
+        <ConfirmDialog
+            open={!!deleteCol}
+            onClose={() => setDeleteCol(null)}
+            title="Hapus Collection"
+            message={`Yakin ingin menghapus collection "${deleteCol}"? Tindakan ini tidak dapat dibatalkan.`}
+            confirmLabel="Hapus"
+            loading={deleting}
+            onConfirm={async () => {
+                if (!deleteCol) return
+                setDeleting(true)
+                try {
+                    await fetch(
+                        `/api/rooms/${roomId}/collections/${encodeURIComponent(deleteCol)}`,
+                        { method: 'DELETE', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+                    )
+                    setDeleteCol(null)
+                    await loadCollections()
+                } finally {
+                    setDeleting(false)
+                }
+            }}
+        />
+        </>
     )
 }

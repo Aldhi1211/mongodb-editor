@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 type RoomListProps = {
   onSelect: (id: string) => void;
@@ -29,6 +30,8 @@ export default function RoomList({ onSelect, activeRoomId }: RoomListProps) {
   const [status, setStatus] = useState<{ type: "success" | "error"; msg: string } | null>(null);
   const [membersRoom, setMembersRoom] = useState<{ id: string; name: string } | null>(null);
   const [editRoom, setEditRoom] = useState<{ id: string; name: string } | null>(null);
+  const [deleteRoom, setDeleteRoom] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   return (
     <div className="w-[180px] flex-shrink-0 flex flex-col border-r border-gray-200 bg-gray-50 overflow-hidden">
@@ -127,13 +130,9 @@ export default function RoomList({ onSelect, activeRoomId }: RoomListProps) {
 
                   <DropdownMenuItem
                     className="text-red-600 focus:text-red-600"
-                    onClick={async (e) => {
+                    onClick={(e) => {
                       e.stopPropagation();
-                      await fetch(`/api/rooms/${room._id}`, {
-                        method: "DELETE",
-                        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-                      });
-                      reload();
+                      setDeleteRoom({ id: room._id, name: room.name });
                     }}
                   >
                     <svg className="w-3.5 h-3.5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -171,6 +170,28 @@ export default function RoomList({ onSelect, activeRoomId }: RoomListProps) {
         onClose={() => setEditRoom(null)}
         onUpdated={reload}
         room={editRoom}
+      />
+      <ConfirmDialog
+        open={!!deleteRoom}
+        onClose={() => setDeleteRoom(null)}
+        title="Hapus Room"
+        message={`Yakin ingin menghapus room "${deleteRoom?.name}"? Tindakan ini tidak dapat dibatalkan.`}
+        confirmLabel="Hapus"
+        loading={deleting}
+        onConfirm={async () => {
+          if (!deleteRoom) return;
+          setDeleting(true);
+          try {
+            await fetch(`/api/rooms/${deleteRoom.id}`, {
+              method: "DELETE",
+              headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+            });
+            setDeleteRoom(null);
+            reload();
+          } finally {
+            setDeleting(false);
+          }
+        }}
       />
     </div>
   );
