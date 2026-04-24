@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRooms } from "./useRooms";
 import CreateRoomDialog from "./CreateRoomDialog";
 import InviteUserDialog from "./InviteUserDialog";
@@ -19,10 +19,19 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 type RoomListProps = {
   onSelect: (id: string) => void;
   activeRoomId: string | null;
+  onReady?: () => void;
 };
 
-export default function RoomList({ onSelect, activeRoomId }: RoomListProps) {
-  const { rooms, reload } = useRooms();
+export default function RoomList({ onSelect, activeRoomId, onReady }: RoomListProps) {
+  const { rooms, loading, reload } = useRooms();
+  const onReadyCalled = useRef(false);
+
+  useEffect(() => {
+    if (!loading && !onReadyCalled.current) {
+      onReadyCalled.current = true;
+      onReady?.();
+    }
+  }, [loading]);
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [inviteRoomId, setInviteRoomId] = useState<string | null>(null);

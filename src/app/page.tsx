@@ -16,6 +16,7 @@ export default function Home() {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [collection, setCollection] = useState<string | null>(null);
   const [tab, setTab] = useState<"data" | "audit">("data");
+  const [tabLoading, setTabLoading] = useState(true);
 
   useEffect(() => {
     const t = localStorage.getItem("token");
@@ -35,9 +36,12 @@ export default function Home() {
     }
   }, []);
 
-  useEffect(() => {
-    if (tab === "data") { setRoomId(null); setCollection(null); }
-  }, [tab]);
+  const handleTabChange = (t: "data" | "audit") => {
+    if (t === tab) return;
+    setTabLoading(true);
+    setTab(t);
+    if (t === "data") { setRoomId(null); setCollection(null); }
+  };
 
   useEffect(() => {
     document.body.style.pointerEvents = "auto";
@@ -72,7 +76,7 @@ export default function Home() {
           {(["data", "audit"] as const).map((t) => (
             <button
               key={t}
-              onClick={() => setTab(t)}
+              onClick={() => handleTabChange(t)}
               className={`px-5 py-1.5 rounded-md text-[12px] font-medium cursor-pointer transition-all
                 ${tab === t
                   ? "bg-white text-[#111] shadow-sm"
@@ -103,10 +107,28 @@ export default function Home() {
       </div>
 
       {/* Main */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
+
+        {/* Tab loading overlay */}
+        {tabLoading && (
+          <div className="absolute inset-0 z-30 bg-white flex flex-col items-center justify-center gap-3">
+            <div className="relative w-8 h-8">
+              <div className="absolute inset-0 rounded-full border-2 border-gray-100" />
+              <div className="absolute inset-0 rounded-full border-2 border-t-gray-700 animate-spin" />
+            </div>
+            <span className="text-[12px] text-gray-400 tracking-wide">
+              {tab === "audit" ? "Loading audit logs…" : "Loading data…"}
+            </span>
+          </div>
+        )}
+
         {tab === "data" && (
           <>
-            <RoomList activeRoomId={roomId} onSelect={setRoomId} />
+            <RoomList
+              activeRoomId={roomId}
+              onSelect={setRoomId}
+              onReady={() => setTabLoading(false)}
+            />
             {roomId && (
               <CollectionList
                 roomId={roomId}
@@ -121,7 +143,7 @@ export default function Home() {
         )}
         {tab === "audit" && (
           <div className="flex-1 overflow-auto">
-            <AuditViewer />
+            <AuditViewer onReady={() => setTabLoading(false)} />
           </div>
         )}
       </div>

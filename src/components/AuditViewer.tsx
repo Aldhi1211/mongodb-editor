@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import AuditDiffModal from '@/components/AuditDiffModal'
 
-export default function AuditViewer() {
+export default function AuditViewer({ onReady }: { onReady?: () => void }) {
     const [logs, setLogs] = useState<any[]>([])
     const [selectedLog, setSelectedLog] = useState<any | null>(null)
 
@@ -13,7 +13,11 @@ export default function AuditViewer() {
             headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
         })
             .then(r => r.json())
-            .then(res => setLogs(res.data || []))
+            .then(res => {
+                setLogs(res.data || [])
+                onReady?.()
+            })
+            .catch(() => onReady?.())
     }, [])
 
     return (
