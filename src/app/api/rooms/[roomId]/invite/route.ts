@@ -58,22 +58,31 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const target = await authDb.collection("users").findOne({ email });
+  const target = await authDb
+    .collection("users")
+    .findOne({ email: { $regex: new RegExp(`^${email}$`, "i") } });
 
   if (!target) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
+  const targetUserId = target._id.toString();
+
+  // Prevent inviting yourself
+  if (targetUserId === user.userId) {
+    return NextResponse.json({ error: "Cannot invite yourself" }, { status: 400 });
+  }
+
+  // Pull any existing entry for this user (handles re-invite after kick)
   await coreDb.collection("rooms").updateOne(
     { _id: roomObjectId },
-    {
-      $addToSet: {
-        members: {
-          userId: target._id.toString(),
-          role,
-        },
-      },
-    },
+    { $pull: { members: { userId: targetUserId } } } as any,
+  );
+
+  // Push fresh membership
+  await coreDb.collection("rooms").updateOne(
+    { _id: roomObjectId },
+    { $push: { members: { userId: targetUserId, role } } } as any,
   );
 
   return NextResponse.json({ success: true });
