@@ -16,14 +16,23 @@ import {
 } from "@/components/ui/dropdown-menu";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
+function getCurrentUserId(): string | null {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) return null;
+    return JSON.parse(atob(token.split(".")[1])).userId ?? null;
+  } catch { return null; }
+}
+
 type RoomListProps = {
-  onSelect: (id: string) => void;
+  onSelect: (id: string, role: string) => void;
   activeRoomId: string | null;
   onReady?: () => void;
 };
 
 export default function RoomList({ onSelect, activeRoomId, onReady }: RoomListProps) {
   const { rooms, loading, reload } = useRooms();
+  const currentUserId = typeof window !== "undefined" ? getCurrentUserId() : null;
   const onReadyCalled = useRef(false);
 
   useEffect(() => {
@@ -74,7 +83,10 @@ export default function RoomList({ onSelect, activeRoomId, onReady }: RoomListPr
               key={room._id}
               className={`flex items-center justify-between px-3.5 py-2 cursor-pointer transition-colors
                 ${isActive ? "bg-[#111]" : "hover:bg-white"}`}
-              onClick={() => onSelect(room._id)}
+              onClick={() => {
+                const myMember = room.members?.find((m: any) => m.userId === currentUserId);
+                onSelect(room._id, myMember?.role ?? "viewer");
+              }}
             >
               <span className={`text-[13px] truncate flex-1 ${isActive ? "text-white font-medium" : "text-gray-800"}`}>
                 {room.name}

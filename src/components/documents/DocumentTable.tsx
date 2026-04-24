@@ -16,7 +16,8 @@ import { getEjsonIdString, toShellString } from "@/lib/ejsonShell";
 type Operator = "is" | "regex" | "gt" | "lt";
 type Filter = { key: string; operator: Operator; value: string };
 
-export default function DocumentTable({ roomId, collection }: any) {
+export default function DocumentTable({ roomId, collection, userRole = "viewer" }: any) {
+  const canWrite = userRole !== "viewer";
   const {
     data,
     fetchData,
@@ -209,12 +210,14 @@ export default function DocumentTable({ roomId, collection }: any) {
 
       {/* View Tabs + doc count */}
       <div className="flex items-center gap-1.5 px-4 py-2 border-b border-gray-200 flex-shrink-0">
-        <button
-          className="px-3.5 py-1 rounded-md text-[12px] font-medium bg-[#111] text-white cursor-pointer"
-          onClick={() => { setSelectedDoc(null); setIsEditorOpen(true); }}
-        >
-          New
-        </button>
+        {canWrite && (
+          <button
+            className="px-3.5 py-1 rounded-md text-[12px] font-medium bg-[#111] text-white cursor-pointer"
+            onClick={() => { setSelectedDoc(null); setIsEditorOpen(true); }}
+          >
+            New
+          </button>
+        )}
         <button
           className="px-3.5 py-1 rounded-md text-[12px] text-gray-600 border border-gray-200 hover:bg-gray-50 cursor-pointer"
           onClick={() => setIsJsonViewOpen(true)}
@@ -258,7 +261,10 @@ export default function DocumentTable({ roomId, collection }: any) {
               <tr
                 key={row.id}
                 className="group cursor-pointer hover:bg-gray-50"
-                onClick={() => { setSelectedDoc(row.original); setIsEditorOpen(true); }}
+                onClick={() => {
+                  if (canWrite) { setSelectedDoc(row.original); setIsEditorOpen(true); }
+                  else { setViewDoc(row.original); }
+                }}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   setContextRow(row.original);
@@ -306,6 +312,7 @@ export default function DocumentTable({ roomId, collection }: any) {
 
       <DocumentContextMenu
         pos={menuPos}
+        userRole={userRole}
         onDelete={async () => {
           await deleteDoc(getEjsonIdString(contextRow?._id));
           await fetchData();

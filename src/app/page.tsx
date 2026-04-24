@@ -14,6 +14,7 @@ export default function Home() {
   const [token, setToken] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string>("");
   const [roomId, setRoomId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string>("viewer");
   const [collection, setCollection] = useState<string | null>(null);
   const [tab, setTab] = useState<"data" | "audit">("data");
   const [tabLoading, setTabLoading] = useState(true);
@@ -126,7 +127,7 @@ export default function Home() {
           <>
             <RoomList
               activeRoomId={roomId}
-              onSelect={setRoomId}
+              onSelect={(id, role) => { setRoomId(id); setUserRole(role); setCollection(null); }}
               onReady={() => setTabLoading(false)}
             />
             {roomId && (
@@ -134,10 +135,11 @@ export default function Home() {
                 roomId={roomId}
                 activeCollection={collection}
                 onSelect={setCollection}
+                userRole={userRole}
               />
             )}
             {roomId && collection && (
-              <DocumentTable roomId={roomId} collection={collection} />
+              <DocumentTable roomId={roomId} collection={collection} userRole={userRole} />
             )}
           </>
         )}

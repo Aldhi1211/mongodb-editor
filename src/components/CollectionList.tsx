@@ -20,9 +20,10 @@ type Props = {
     roomId: string
     onSelect: (name: string) => void
     activeCollection: string | null
+    userRole?: string
 }
 
-export default function CollectionList({ roomId, onSelect, activeCollection }: Props) {
+export default function CollectionList({ roomId, onSelect, activeCollection, userRole = "viewer" }: Props) {
     const [collections, setCollections] = useState<Collection[]>([])
     const [search, setSearch] = useState('')
     const [loading, setLoading] = useState(false)
@@ -132,15 +133,21 @@ export default function CollectionList({ roomId, onSelect, activeCollection }: P
                                     </button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                    <DropdownMenuItem
-                                        className="text-red-600"
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            setDeleteCol(col.name)
-                                        }}
-                                    >
-                                        Delete
-                                    </DropdownMenuItem>
+                                    {userRole !== "viewer" ? (
+                                        <DropdownMenuItem
+                                            className="text-red-600"
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                setDeleteCol(col.name)
+                                            }}
+                                        >
+                                            Delete
+                                        </DropdownMenuItem>
+                                    ) : (
+                                        <DropdownMenuItem disabled className="text-gray-400 text-xs">
+                                            No actions available
+                                        </DropdownMenuItem>
+                                    )}
                                 </DropdownMenuContent>
                             </DropdownMenu>
                         </div>

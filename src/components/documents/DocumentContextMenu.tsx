@@ -2,7 +2,7 @@ import { useState } from "react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { Loader2, Eye, Pencil, Trash2, RefreshCw } from "lucide-react"
 
-export default function DocumentContextMenu({ pos, onDelete, onUpdate, onView, onRefresh, onClose }: any) {
+export default function DocumentContextMenu({ pos, onDelete, onUpdate, onView, onRefresh, onClose, userRole = "viewer" }: any) {
     const [loading, setLoading] = useState(false)
 
     if (!pos) return null
@@ -32,9 +32,11 @@ export default function DocumentContextMenu({ pos, onDelete, onUpdate, onView, o
                 <DropdownMenuItem onClick={() => { onView(); onClose(); }} className="flex items-center gap-2">
                     <Eye className="w-4 h-4" /> View
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={onUpdate} className="flex items-center gap-2">
-                    <Pencil className="w-4 h-4" /> Update
-                </DropdownMenuItem>
+                {userRole !== "viewer" && (
+                    <DropdownMenuItem onClick={onUpdate} className="flex items-center gap-2">
+                        <Pencil className="w-4 h-4" /> Update
+                    </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                     onSelect={handleRefresh}
                     disabled={loading}
@@ -43,10 +45,14 @@ export default function DocumentContextMenu({ pos, onDelete, onUpdate, onView, o
                     {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                     {loading ? "Refreshing..." : "Refresh"}
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={onDelete} className="flex items-center gap-2 text-red-600 focus:text-red-600">
-                    <Trash2 className="w-4 h-4" /> Delete
-                </DropdownMenuItem>
+                {userRole !== "viewer" && (
+                    <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={onDelete} className="flex items-center gap-2 text-red-600 focus:text-red-600">
+                            <Trash2 className="w-4 h-4" /> Delete
+                        </DropdownMenuItem>
+                    </>
+                )}
             </DropdownMenuContent>
         </DropdownMenu>
     )
