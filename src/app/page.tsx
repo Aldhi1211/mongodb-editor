@@ -6,12 +6,13 @@ import RoomList from "@/components/rooms/RoomList";
 import CollectionList from "@/components/CollectionList";
 import DocumentTable from "@/components/documents/DocumentTable";
 import AuditViewer from "@/components/AuditViewer";
-import { LogOut } from "lucide-react";
+import { LogOut, Database } from "lucide-react";
 import { jwtDecode } from "jwt-decode";
 
 export default function Home() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string>("");
   const [roomId, setRoomId] = useState<string | null>(null);
   const [collection, setCollection] = useState<string | null>(null);
   const [tab, setTab] = useState<"data" | "audit">("data");
@@ -26,6 +27,7 @@ export default function Home() {
         router.replace("/login");
       } else {
         setToken(t);
+        setUserEmail((decoded as any).email || "");
       }
     } catch {
       localStorage.removeItem("token");
@@ -54,26 +56,50 @@ export default function Home() {
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden">
       {/* Topbar */}
-      <div className="flex items-center justify-between px-4 h-11 bg-[#111] flex-shrink-0">
-        <div className="flex gap-1">
+      <div className="flex items-center justify-between px-5 h-12 bg-[#0c0c0c] border-b border-[#1f1f1f] flex-shrink-0">
+
+        {/* Left — Brand */}
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-[#1a1a1a] border border-[#2e2e2e] flex items-center justify-center">
+            <Database className="w-3.5 h-3.5 text-[#7c8cf8]" />
+          </div>
+          <span className="text-white text-[13px] font-semibold tracking-tight">MongoStudio</span>
+          <div className="w-px h-4 bg-[#2a2a2a] ml-1" />
+        </div>
+
+        {/* Center — Tabs */}
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-[#181818] rounded-lg p-1 border border-[#272727]">
           {(["data", "audit"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-4 py-1.5 rounded-md text-[12px] font-medium capitalize cursor-pointer transition-colors
-                ${tab === t ? "bg-white text-[#111]" : "text-[#aaa] hover:text-white"}`}
+              className={`px-5 py-1.5 rounded-md text-[12px] font-medium cursor-pointer transition-all
+                ${tab === t
+                  ? "bg-white text-[#111] shadow-sm"
+                  : "text-[#666] hover:text-[#bbb]"
+                }`}
             >
-              {t.charAt(0).toUpperCase() + t.slice(1)}
+              {t === "data" ? "Data" : "Audit Log"}
             </button>
           ))}
         </div>
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-1.5 bg-[#ee0033] text-white px-3.5 py-1.5 rounded-md text-[12px] cursor-pointer hover:bg-[#cc0029] transition-colors"
-        >
-          <LogOut className="w-3 h-3" />
-          Logout
-        </button>
+
+        {/* Right — User + Logout */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 bg-[#181818] border border-[#272727] rounded-lg px-2.5 py-1.5">
+            <div className="w-5 h-5 rounded-full bg-[#7c8cf8] flex items-center justify-center text-[10px] font-bold text-white uppercase flex-shrink-0">
+              {userEmail.charAt(0) || "?"}
+            </div>
+            <span className="text-[#888] text-[11px] max-w-[150px] truncate leading-none">{userEmail}</span>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 text-[#666] hover:text-white px-2.5 py-1.5 rounded-lg hover:bg-[#1a1a1a] border border-transparent hover:border-[#2a2a2a] text-[12px] cursor-pointer transition-all"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
       </div>
 
       {/* Main */}

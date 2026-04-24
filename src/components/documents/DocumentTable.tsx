@@ -39,6 +39,7 @@ export default function DocumentTable({ roomId, collection }: any) {
   const [menuPos, setMenuPos] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState<Filter[]>([{ key: "", operator: "is", value: "" }]);
+  const [filterMode, setFilterMode] = useState<"and" | "or">("and");
 
   const formatCellValue = useCallback((value: any) => {
     if (value === null || value === undefined) return <span className="text-gray-300">—</span>;
@@ -100,18 +101,22 @@ export default function DocumentTable({ roomId, collection }: any) {
   };
 
   const buildQuery = () => {
-    const query: any = {};
+    const conditions: any[] = [];
     filters.forEach((f) => {
       if (!f.key) return;
       const value = isNaN(Number(f.value)) ? f.value : Number(f.value);
+      const cond: any = {};
       switch (f.operator) {
-        case "is": query[f.key] = value; break;
-        case "regex": query[f.key] = { $regex: f.value, $options: "i" }; break;
-        case "gt": query[f.key] = { $gt: value }; break;
-        case "lt": query[f.key] = { $lt: value }; break;
+        case "is": cond[f.key] = value; break;
+        case "regex": cond[f.key] = { $regex: f.value, $options: "i" }; break;
+        case "gt": cond[f.key] = { $gt: value }; break;
+        case "lt": cond[f.key] = { $lt: value }; break;
       }
+      conditions.push(cond);
     });
-    return query;
+    if (conditions.length === 0) return {};
+    if (conditions.length === 1 || filterMode === "and") return Object.assign({}, ...conditions);
+    return { $or: conditions };
   };
 
   const inputCls = "px-2.5 py-1.5 rounded-md border border-gray-200 bg-gray-50 text-[12px] text-gray-600 font-mono outline-none focus:border-gray-400";
@@ -131,7 +136,20 @@ export default function DocumentTable({ roomId, collection }: any) {
           {filters.map((filter, index) => {
             const isLast = index === filters.length - 1;
             return (
-              <div key={index} className="flex items-center gap-2">
+              <div key={index} className="flex flex-col gap-1.5">
+              {index > 0 && (
+                <div className="flex items-center gap-1.5 pl-0.5">
+                  <div className="h-px w-3 bg-gray-200" />
+                  <button
+                    onClick={() => setFilterMode(m => m === "and" ? "or" : "and")}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-500 hover:border-gray-400 hover:text-gray-700 cursor-pointer tracking-wider transition-colors"
+                  >
+                    {filterMode.toUpperCase()}
+                  </button>
+                  <div className="h-px flex-1 bg-gray-200" />
+                </div>
+              )}
+              <div className="flex items-center gap-2">
                 <input
                   className={`${inputCls} flex-[2]`}
                   placeholder="key"
@@ -182,6 +200,7 @@ export default function DocumentTable({ roomId, collection }: any) {
                     </button>
                   </>
                 )}
+              </div>
               </div>
             );
           })}
