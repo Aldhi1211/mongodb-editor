@@ -106,9 +106,16 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
     filters.forEach((f) => {
       if (!f.key) return;
       const value = isNaN(Number(f.value)) ? f.value : Number(f.value);
+      const isObjectIdLike = /^[0-9a-fA-F]{24}$/.test(f.value);
       const cond: any = {};
       switch (f.operator) {
-        case "is": cond[f.key] = value; break;
+        case "is":
+          if (f.key === "_id" && isObjectIdLike) {
+            cond["$or"] = [{ _id: { $oid: f.value } }, { _id: f.value }];
+          } else {
+            cond[f.key] = value;
+          }
+          break;
         case "regex": cond[f.key] = { $regex: f.value, $options: "i" }; break;
         case "gt": cond[f.key] = { $gt: value }; break;
         case "lt": cond[f.key] = { $lt: value }; break;
