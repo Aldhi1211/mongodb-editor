@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import RoomList from "@/components/rooms/RoomList";
-import CollectionList from "@/components/CollectionList";
+import CollectionList from "@/components/collections/CollectionList";
 import DocumentTable from "@/components/documents/DocumentTable";
 import AuditViewer from "@/components/AuditViewer";
 import { LogOut, Database } from "lucide-react";

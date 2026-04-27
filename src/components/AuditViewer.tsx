@@ -8,7 +8,7 @@ export default function AuditViewer({ onReady }: { onReady?: () => void }) {
     const [logs, setLogs] = useState<any[]>([])
     const [selectedLog, setSelectedLog] = useState<any | null>(null)
 
-    useEffect(() => {
+    const fetchLogs = () => {
         fetch('/api/audit', {
             headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
         })
@@ -18,7 +18,9 @@ export default function AuditViewer({ onReady }: { onReady?: () => void }) {
                 onReady?.()
             })
             .catch(() => onReady?.())
-    }, [])
+    }
+
+    useEffect(() => { fetchLogs() }, [])
 
     return (
         <div className="p-4">
@@ -59,6 +61,7 @@ export default function AuditViewer({ onReady }: { onReady?: () => void }) {
                     open={true}
                     log={selectedLog}
                     onClose={() => setSelectedLog(null)}
+                    onRollbackSuccess={() => { setSelectedLog(null); fetchLogs(); }}
                 />
             )}
 

@@ -2,14 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { RefreshCcw } from 'lucide-react'
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger
-} from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import ConfirmDialog from "@/components/ui/ConfirmDialog"
+import CollectionContextMenu from "./CollectionContextMenu"
 
 type Collection = {
     name: string
@@ -29,6 +24,8 @@ export default function CollectionList({ roomId, onSelect, activeCollection, use
     const [loading, setLoading] = useState(false)
     const [deleteCol, setDeleteCol] = useState<string | null>(null)
     const [deleting, setDeleting] = useState(false)
+    const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
+    const [menuCol, setMenuCol] = useState<string>('')
 
     const loadCollections = async () => {
         try {
@@ -109,9 +106,14 @@ export default function CollectionList({ roomId, onSelect, activeCollection, use
                     return (
                         <div
                             key={col.name}
-                            className={`flex items-center justify-between px-3 py-2 border-b border-gray-100 cursor-pointer
-                                ${active ? 'bg-[#111]' : 'hover:bg-gray-50'}`}
+                            className={`flex items-center px-3 py-2 border-b border-gray-100 cursor-pointer select-none transition-colors
+                                ${active ? 'bg-[#111]' : menuCol === col.name && menuPos ? 'bg-blue-50 ring-1 ring-inset ring-blue-200' : 'hover:bg-gray-50'}`}
                             onClick={() => onSelect(col.name)}
+                            onContextMenu={(e) => {
+                                e.preventDefault()
+                                setMenuCol(col.name)
+                                setMenuPos({ x: e.clientX, y: e.clientY })
+                            }}
                         >
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -123,38 +125,23 @@ export default function CollectionList({ roomId, onSelect, activeCollection, use
                                     {col.name}
                                 </TooltipContent>
                             </Tooltip>
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <button
-                                        className={`text-[14px] leading-none px-0.5 cursor-pointer ${active ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
-                                        onClick={(e) => e.stopPropagation()}
-                                    >
-                                        ⋯
-                                    </button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                    {userRole !== "viewer" ? (
-                                        <DropdownMenuItem
-                                            className="text-red-600"
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                setDeleteCol(col.name)
-                                            }}
-                                        >
-                                            Delete
-                                        </DropdownMenuItem>
-                                    ) : (
-                                        <DropdownMenuItem disabled className="text-gray-400 text-xs">
-                                            No actions available
-                                        </DropdownMenuItem>
-                                    )}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
                         </div>
                     )
                 })}
             </div>
         </div>
+
+        <CollectionContextMenu
+            pos={menuPos}
+            collectionName={menuCol}
+            userRole={userRole}
+            onDelete={() => setDeleteCol(menuCol)}
+            onRefresh={async () => {
+                setLoading(true)
+                try { await loadCollections() } finally { setLoading(false) }
+            }}
+            onClose={() => { setMenuPos(null); setMenuCol('') }}
+        />
 
         <ConfirmDialog
             open={!!deleteCol}
