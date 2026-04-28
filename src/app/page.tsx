@@ -6,7 +6,8 @@ import RoomList from "@/components/rooms/RoomList";
 import CollectionList from "@/components/collections/CollectionList";
 import DocumentTable from "@/components/documents/DocumentTable";
 import AuditViewer from "@/components/AuditViewer";
-import { LogOut, Database } from "lucide-react";
+import { LogOut, Database, BarChart2 } from "lucide-react";
+import Link from "next/link";
 import { jwtDecode } from "jwt-decode";
 
 export default function Home() {
@@ -69,7 +70,14 @@ export default function Home() {
             <Database className="w-3.5 h-3.5 text-[#7c8cf8]" />
           </div>
           <span className="text-white text-[13px] font-semibold tracking-tight">MongoStudio</span>
-          <div className="w-px h-4 bg-[#2a2a2a] ml-1" />
+          <div className="w-px h-4 bg-[#2a2a2a] mx-1" />
+          <Link
+            href="/chart"
+            className="flex items-center gap-1.5 text-[#555] hover:text-[#7c8cf8] px-2 py-1 rounded-md hover:bg-[#1a1a1a] text-[12px] transition-all"
+          >
+            <BarChart2 className="w-3.5 h-3.5" />
+            Chart
+          </Link>
         </div>
 
         {/* Center — Tabs */}
