@@ -107,7 +107,7 @@ export const toShellString = (value: any, space = 2) => {
   }
 };
 
-export const normalizeShellInput = (text: string) => {
+const normalizeShellInput = (text: string) => {
   let output = text;
 
   output = output.replace(
