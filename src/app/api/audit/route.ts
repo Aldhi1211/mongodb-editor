@@ -25,6 +25,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { searchParams } = new URL(req.url);
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
+  const limit = 20;
+  const skip = (page - 1) * limit;
+
   const client = await clientPromise;
   const db = client.db("workflowbuilder_core");
 
@@ -38,15 +43,15 @@ export async function GET(req: Request) {
   const roomIds = userRooms.map((r) => r._id.toString());
 
   if (roomIds.length === 0) {
-    return NextResponse.json({ data: [] });
+    return NextResponse.json({ data: [], total: 0, page, totalPages: 0 });
   }
 
-  const logs = await db
-    .collection("audit_logs")
-    .find({ roomId: { $in: roomIds } })
-    .sort({ timestamp: -1 })
-    .limit(100)
-    .toArray();
+  const filter = { roomId: { $in: roomIds } };
 
-  return NextResponse.json({ data: logs });
+  const [logs, total] = await Promise.all([
+    db.collection("audit_logs").find(filter).sort({ timestamp: -1 }).skip(skip).limit(limit).toArray(),
+    db.collection("audit_logs").countDocuments(filter),
+  ]);
+
+  return NextResponse.json({ data: logs, total, page, totalPages: Math.ceil(total / limit) });
 }
