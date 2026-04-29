@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { RefreshCcw } from 'lucide-react'
+import { RefreshCcw, AlertTriangle } from 'lucide-react'
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import ConfirmDialog from "@/components/ui/ConfirmDialog"
 import CollectionContextMenu from "./CollectionContextMenu"
@@ -18,24 +18,39 @@ type Props = {
     userRole?: string
 }
 
+async function fetchCollections(roomId: string): Promise<{ data: Collection[]; error: string | null }> {
+    const res = await fetch(`/api/rooms/${roomId}/collections`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    })
+    const json = await res.json()
+    if (!res.ok || json.error) {
+        return { data: [], error: json.error || 'Failed to load collections' }
+    }
+    return { data: Array.isArray(json) ? json : [], error: null }
+}
+
 export default function CollectionList({ roomId, onSelect, activeCollection, userRole = "viewer" }: Props) {
     const [collections, setCollections] = useState<Collection[]>([])
     const [search, setSearch] = useState('')
     const [loading, setLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
     const [deleteCol, setDeleteCol] = useState<string | null>(null)
     const [deleting, setDeleting] = useState(false)
     const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
     const [menuCol, setMenuCol] = useState<string>('')
 
     const loadCollections = async () => {
+        setLoading(true)
+        setError(null)
         try {
-            const res = await fetch(`/api/rooms/${roomId}/collections`, {
-                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-            })
-            const data = await res.json()
-            setCollections(Array.isArray(data) ? data : [])
+            const { data, error: err } = await fetchCollections(roomId)
+            setCollections(data)
+            setError(err)
         } catch {
+            setError('Network error — could not reach server')
             setCollections([])
+        } finally {
+            setLoading(false)
         }
     }
 
@@ -43,14 +58,15 @@ export default function CollectionList({ roomId, onSelect, activeCollection, use
         let cancelled = false
         const load = async () => {
             setLoading(true)
+            setError(null)
             try {
-                const res = await fetch(`/api/rooms/${roomId}/collections`, {
-                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-                })
-                const data = await res.json()
-                if (!cancelled) setCollections(Array.isArray(data) ? data : [])
+                const { data, error: err } = await fetchCollections(roomId)
+                if (!cancelled) { setCollections(data); setError(err) }
             } catch {
-                if (!cancelled) setCollections([])
+                if (!cancelled) {
+                    setError('Network error — could not reach server')
+                    setCollections([])
+                }
             } finally {
                 if (!cancelled) setLoading(false)
             }
@@ -74,10 +90,8 @@ export default function CollectionList({ roomId, onSelect, activeCollection, use
             <div className="flex items-center justify-between px-3.5 h-[41px] border-b border-gray-200 flex-shrink-0">
                 <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-[0.05em]">Collections</span>
                 <button
-                    onClick={async () => {
-                        setLoading(true)
-                        try { await loadCollections() } finally { setLoading(false) }
-                    }}
+                    onClick={loadCollections}
+                    disabled={loading}
                     className="text-gray-400 hover:text-gray-600 cursor-pointer"
                 >
                     <RefreshCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -101,7 +115,32 @@ export default function CollectionList({ roomId, onSelect, activeCollection, use
                         <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
                     </div>
                 )}
-                {!loading && filtered.map(col => {
+
+                {/* Error state */}
+                {!loading && error && (
+                    <div className="mx-2.5 mt-3 p-2.5 rounded-lg bg-red-50 border border-red-100">
+                        <div className="flex items-start gap-2">
+                            <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-0.5" />
+                            <div>
+                                <p className="text-[11px] font-semibold text-red-600 leading-tight">Connection failed</p>
+                                <p className="text-[10px] text-red-400 mt-0.5 leading-snug break-words">{error}</p>
+                                {error.includes('wire version') || error.includes('4.2') ? (
+                                    <p className="text-[10px] text-red-400 mt-1 leading-snug">
+                                        Server MongoDB version is too old. Requires MongoDB 3.6+.
+                                    </p>
+                                ) : null}
+                            </div>
+                        </div>
+                        <button
+                            onClick={loadCollections}
+                            className="mt-2 w-full text-[10px] text-red-500 hover:text-red-700 bg-red-100 hover:bg-red-200 rounded px-2 py-1 cursor-pointer transition-colors"
+                        >
+                            Retry
+                        </button>
+                    </div>
+                )}
+
+                {!loading && !error && filtered.map(col => {
                     const active = col.name === activeCollection
                     return (
                         <div
@@ -128,6 +167,10 @@ export default function CollectionList({ roomId, onSelect, activeCollection, use
                         </div>
                     )
                 })}
+
+                {!loading && !error && filtered.length === 0 && collections.length > 0 && (
+                    <p className="text-[11px] text-gray-400 text-center py-6">No match</p>
+                )}
             </div>
         </div>
 
@@ -136,10 +179,7 @@ export default function CollectionList({ roomId, onSelect, activeCollection, use
             collectionName={menuCol}
             userRole={userRole}
             onDelete={() => setDeleteCol(menuCol)}
-            onRefresh={async () => {
-                setLoading(true)
-                try { await loadCollections() } finally { setLoading(false) }
-            }}
+            onRefresh={loadCollections}
             onClose={() => { setMenuPos(null); setMenuCol('') }}
         />
 

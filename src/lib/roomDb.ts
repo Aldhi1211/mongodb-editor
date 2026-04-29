@@ -1,7 +1,9 @@
 import { MongoClient } from 'mongodb'
 import crypto from 'crypto'
 import clientPromise from './mongodb'
+import { ObjectId } from 'mongodb'
 
+// Only cache SUCCESSFUL connections
 const roomClients: Record<string, MongoClient> = {}
 
 function decrypt(encrypted: string) {
@@ -20,17 +22,30 @@ export async function getRoomDb(roomId: string) {
     const coreClient = await clientPromise
     const coreDb = coreClient.db('workflowbuilder_core')
 
-    const room = await coreDb.collection('rooms').findOne({ _id: new (require('mongodb').ObjectId)(roomId) })
+    const room = await coreDb.collection('rooms').findOne({ _id: new ObjectId(roomId) })
     if (!room) throw new Error('Room not found')
 
+    // Return cached client if it's still alive
     if (roomClients[roomId]) {
-        return roomClients[roomId].db()
+        try {
+            await roomClients[roomId].db().command({ ping: 1 })
+            return roomClients[roomId].db()
+        } catch {
+            // Cached connection is dead, remove it and reconnect
+            delete roomClients[roomId]
+        }
     }
 
     const uri = decrypt(room.mongoUri)
-    const client = new MongoClient(uri)
+    const client = new MongoClient(uri, {
+        serverSelectionTimeoutMS: 8000,
+        connectTimeoutMS: 8000,
+        socketTimeoutMS: 10000,
+    })
+
     await client.connect()
 
+    // Only cache after successful connect
     roomClients[roomId] = client
     return client.db()
 }

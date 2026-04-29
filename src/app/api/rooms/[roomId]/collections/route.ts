@@ -21,13 +21,40 @@ export async function GET(
 
     const { roomId } = await params   // 🔥 INI KUNCINYA
 
-    const db = await getRoomDb(roomId)
-    const collections = await db.listCollections().toArray()
+    let db
+    try {
+        db = await getRoomDb(roomId)
+    } catch (err: any) {
+        return NextResponse.json(
+            { error: `Cannot connect to database: ${err.message}` },
+            { status: 500 }
+        )
+    }
 
-    return NextResponse.json(
-        collections.map(c => ({
-            name: c.name,
-            type: c.type
-        }))
-    )
+    // Try modern listCollections first (MongoDB 3.0+),
+    // fall back to system.namespaces for older versions (< 3.0)
+    try {
+        const raw = await db.listCollections().toArray()
+        return NextResponse.json(
+            raw.map(c => ({ name: c.name, type: c.type || 'collection' }))
+        )
+    } catch {
+        // Fallback: query system.namespaces (MongoDB 2.x)
+        try {
+            const dbName = db.databaseName
+            const namespaces = await db.collection('system.namespaces').find({}).toArray()
+            const collections = namespaces
+                .filter((ns: any) => !ns.name.includes('$') && ns.name.startsWith(dbName + '.'))
+                .map((ns: any) => ({
+                    name: ns.name.slice(dbName.length + 1),
+                    type: 'collection',
+                }))
+            return NextResponse.json(collections)
+        } catch (fallbackErr: any) {
+            return NextResponse.json(
+                { error: `Cannot list collections: ${fallbackErr.message}` },
+                { status: 500 }
+            )
+        }
+    }
 }

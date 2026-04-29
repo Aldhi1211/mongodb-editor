@@ -34,7 +34,7 @@
     "jsonwebtoken": "^9.0.3",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.534.0",
-    "mongodb": "^7.0.0",
+    "mongodb": "^5.9.2",
     "next": "^16.1.6",
     "react": "19.1.0",
     "react-dnd": "^16.0.1",
