@@ -18,13 +18,25 @@ type Props = {
     userRole?: string
 }
 
+function friendlyError(raw: string): string {
+    if (raw.includes('wire version') || raw.includes('4.2') || raw.includes('3.6'))
+        return 'MongoDB version is not supported. Please upgrade to MongoDB 3.6 or newer.'
+    if (raw.includes('ECONNREFUSED') || raw.includes('connect'))
+        return 'Unable to connect to the database. Please check the connection URI.'
+    if (raw.includes('Authentication') || raw.includes('auth'))
+        return 'Authentication failed. Please check your credentials.'
+    if (raw.includes('Network') || raw.includes('network'))
+        return 'Network error. Please check your internet connection.'
+    return 'Could not load collections. Please try again.'
+}
+
 async function fetchCollections(roomId: string): Promise<{ data: Collection[]; error: string | null }> {
     const res = await fetch(`/api/rooms/${roomId}/collections`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
     })
     const json = await res.json()
     if (!res.ok || json.error) {
-        return { data: [], error: json.error || 'Failed to load collections' }
+        return { data: [], error: friendlyError(json.error || '') }
     }
     return { data: Array.isArray(json) ? json : [], error: null }
 }
@@ -47,7 +59,7 @@ export default function CollectionList({ roomId, onSelect, activeCollection, use
             setCollections(data)
             setError(err)
         } catch {
-            setError('Network error — could not reach server')
+            setError('Network error. Please check your internet connection.')
             setCollections([])
         } finally {
             setLoading(false)
@@ -64,7 +76,7 @@ export default function CollectionList({ roomId, onSelect, activeCollection, use
                 if (!cancelled) { setCollections(data); setError(err) }
             } catch {
                 if (!cancelled) {
-                    setError('Network error — could not reach server')
+                    setError('Network error. Please check your internet connection.')
                     setCollections([])
                 }
             } finally {
@@ -116,20 +128,11 @@ export default function CollectionList({ roomId, onSelect, activeCollection, use
                     </div>
                 )}
 
-                {/* Error state */}
                 {!loading && error && (
                     <div className="mx-2.5 mt-3 p-2.5 rounded-lg bg-red-50 border border-red-100">
                         <div className="flex items-start gap-2">
                             <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-0.5" />
-                            <div>
-                                <p className="text-[11px] font-semibold text-red-600 leading-tight">Connection failed</p>
-                                <p className="text-[10px] text-red-400 mt-0.5 leading-snug break-words">{error}</p>
-                                {error.includes('wire version') || error.includes('4.2') ? (
-                                    <p className="text-[10px] text-red-400 mt-1 leading-snug">
-                                        Server MongoDB version is too old. Requires MongoDB 3.6+.
-                                    </p>
-                                ) : null}
-                            </div>
+                            <p className="text-[11px] text-red-500 leading-snug">{error}</p>
                         </div>
                         <button
                             onClick={loadCollections}
