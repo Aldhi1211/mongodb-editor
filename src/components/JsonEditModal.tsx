@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import Editor from "@monaco-editor/react";
 import { EJSON } from "bson";
 import { ObjectId } from "bson";
+import { toShellString, normalizeShellInput } from "@/lib/ejsonShell";
 
 export default function JsonEditModal({
   open,
@@ -42,8 +43,7 @@ export default function JsonEditModal({
 
   useEffect(() => {
     try {
-      const raw = EJSON.stringify(document);
-      const formatted = JSON.stringify(JSON.parse(raw), null, 2);
+      const formatted = toShellString(document);
       setValue(formatted);
       originalValue.current = formatted;
       setError(null);
@@ -57,7 +57,7 @@ export default function JsonEditModal({
     setError(null);
     let parsed: any;
     try {
-      parsed = EJSON.parse(value);
+      parsed = EJSON.parse(normalizeShellInput(value));
     } catch (err: any) {
       setError(err.message);
       return;
@@ -113,7 +113,7 @@ export default function JsonEditModal({
           <div className="h-full border">
             <Editor
               height="60vh"
-              defaultLanguage="json"
+              defaultLanguage="javascript"
               value={value}
               onChange={(v) => setValue(v || "")}
               options={{
