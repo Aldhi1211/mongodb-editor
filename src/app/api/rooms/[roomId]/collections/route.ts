@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
 import { getRoomDb } from '@/lib/roomDb'
+import clientPromise from '@/lib/mongodb'
+import { ObjectId } from 'mongodb'
 
 function getUser(req: Request) {
     const auth = req.headers.get('authorization')
@@ -19,7 +21,7 @@ export async function GET(
     const user = getUser(req)
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { roomId } = await params   // 🔥 INI KUNCINYA
+    const { roomId } = await params
 
     let db
     try {
@@ -31,15 +33,12 @@ export async function GET(
         )
     }
 
-    // Try modern listCollections first (MongoDB 3.0+),
-    // fall back to system.namespaces for older versions (< 3.0)
     try {
         const raw = await db.listCollections().toArray()
         return NextResponse.json(
             raw.map(c => ({ name: c.name, type: c.type || 'collection' }))
         )
     } catch {
-        // Fallback: query system.namespaces (MongoDB 2.x)
         try {
             const dbName = db.databaseName
             const namespaces = await db.collection('system.namespaces').find({}).toArray()
@@ -57,4 +56,40 @@ export async function GET(
             )
         }
     }
+}
+
+export async function POST(
+    req: Request,
+    { params }: { params: Promise<{ roomId: string }> }
+) {
+    const user = getUser(req)
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const { roomId } = await params
+    const { name } = await req.json()
+    if (!name?.trim()) return NextResponse.json({ error: 'Collection name is required' }, { status: 400 })
+
+    const db = await getRoomDb(roomId)
+
+    const existing = await db.listCollections({ name }).toArray()
+    if (existing.length > 0) return NextResponse.json({ error: `Collection "${name}" already exists` }, { status: 409 })
+
+    await db.createCollection(name)
+
+    const coreClient = await clientPromise
+    const coreDb = coreClient.db('workflowbuilder_core')
+    const room = await coreDb.collection('rooms').findOne({ _id: new ObjectId(roomId) }, { projection: { name: 1 } })
+
+    await coreDb.collection('audit_logs').insertOne({
+        roomId,
+        roomName: room?.name || 'Unknown Room',
+        collection: name,
+        action: 'create_collection',
+        before: null,
+        after: { name },
+        userId: user.userId,
+        timestamp: new Date(),
+    })
+
+    return NextResponse.json({ success: true })
 }

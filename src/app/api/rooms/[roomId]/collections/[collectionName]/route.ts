@@ -130,6 +130,63 @@ export async function POST(
   });
 }
 
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ roomId: string; collectionName: string }> },
+) {
+  const user = getUser(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { roomId, collectionName } = await params;
+  const { newName } = await req.json();
+  if (!newName?.trim()) return NextResponse.json({ error: "New name is required" }, { status: 400 });
+  if (newName === collectionName) return NextResponse.json({ error: "New name must be different" }, { status: 400 });
+
+  const db = await getRoomDb(roomId);
+
+  const existing = await db.listCollections({ name: newName }).toArray();
+  if (existing.length > 0) return NextResponse.json({ error: `Collection "${newName}" already exists` }, { status: 409 });
+
+  // Try renameCollection (needs admin privilege), fallback to copy+drop
+  try {
+    await db.admin().command({
+      renameCollection: `${db.databaseName}.${collectionName}`,
+      to: `${db.databaseName}.${newName}`,
+      dropTarget: false,
+    });
+  } catch {
+    // Fallback: copy all docs then drop old collection
+    const source = db.collection(collectionName);
+    const target = db.collection(newName);
+    const batch: any[] = [];
+    for await (const doc of source.find({})) {
+      batch.push(doc);
+      if (batch.length === 200) { await target.insertMany(batch); batch.length = 0; }
+    }
+    if (batch.length > 0) await target.insertMany(batch);
+    await source.drop();
+  }
+
+  const coreClient = await clientPromise;
+  const coreDb = coreClient.db("workflowbuilder_core");
+  const room = await coreDb.collection("rooms").findOne({ _id: new ObjectId(roomId) }, { projection: { name: 1 } });
+
+  await coreDb.collection("audit_logs").insertOne({
+    roomId,
+    roomName: room?.name || "Unknown Room",
+    collection: collectionName,
+    action: "rename_collection",
+    before: { name: collectionName },
+    after: { name: newName },
+    userId: user.userId,
+    timestamp: new Date(),
+  });
+
+  broadcast({ type: "drop_collection", roomId, collection: collectionName });
+
+  return NextResponse.json({ success: true, newName });
+}
+
 export async function DELETE(
   req: NextRequest,
   context: { params: Promise<{ roomId: string; collectionName: string }> },
