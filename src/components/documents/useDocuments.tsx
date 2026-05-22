@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { EJSON } from "bson";
 
 export function useDocuments(roomId: string, collection: string) {
@@ -8,6 +8,10 @@ export function useDocuments(roomId: string, collection: string) {
   const [isFetching, setIsFetching] = useState(false);
   const limit = 20;
   const token = () => localStorage.getItem("token");
+
+  // Refs so the mongoedit:saved event handler always has the latest values
+  const pageRef = useRef(1);
+  useEffect(() => { pageRef.current = page; }, [page]);
 
   const fetchData = async (p = page) => {
     setIsFetching(true);
@@ -78,7 +82,14 @@ export function useDocuments(roomId: string, collection: string) {
     );
     es.onmessage = () => fetchData(page);
 
-    return () => es.close();
+    // Refresh when the edit page saves a document and navigates back
+    const handleSaved = () => fetchData(pageRef.current);
+    window.addEventListener("mongoedit:saved", handleSaved);
+
+    return () => {
+      es.close();
+      window.removeEventListener("mongoedit:saved", handleSaved);
+    };
   }, [roomId, collection]);
 
   return {

@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   useReactTable,
   getCoreRowModel,
   flexRender,
   ColumnDef,
 } from "@tanstack/react-table";
-import JsonEditModal from "@/components/JsonEditModal";
+import { EJSON } from "bson";
 import { useDocuments } from "./useDocuments";
 import DocumentContextMenu from "./DocumentContextMenu";
 import JsonViewerModal from "./JsonViewerModal";
@@ -18,12 +19,11 @@ type Filter = { key: string; operator: Operator; value: string };
 
 export default function DocumentTable({ roomId, collection, userRole = "viewer" }: any) {
   const canWrite = userRole !== "viewer";
+  const router = useRouter();
   const {
     data,
     fetchData,
     queryData,
-    createDoc,
-    updateDoc,
     deleteDoc,
     page,
     setPage,
@@ -32,8 +32,6 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
     isFetching,
   } = useDocuments(roomId, collection);
 
-  const [selectedDoc, setSelectedDoc] = useState<any>(null);
-  const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [isJsonViewOpen, setIsJsonViewOpen] = useState(false);
   const [viewDoc, setViewDoc] = useState<any>(null);
   const [contextRow, setContextRow] = useState<any>(null);
@@ -87,12 +85,15 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
 
   const table = useReactTable({ data, columns, getCoreRowModel: getCoreRowModel() });
 
-  const handleSave = async (payload: any) => {
-    if (!selectedDoc) await createDoc(payload);
-    else await updateDoc(getEjsonIdString(selectedDoc._id), payload);
-    await fetchData();
-    setIsEditorOpen(false);
-    setSelectedDoc(null);
+  const openNew = () => {
+    router.push(`/edit?roomId=${roomId}&collection=${encodeURIComponent(collection)}&mode=new`);
+  };
+
+  const openEdit = (doc: any) => {
+    sessionStorage.setItem("edit_doc", EJSON.stringify(doc));
+    router.push(
+      `/edit?roomId=${roomId}&collection=${encodeURIComponent(collection)}&docId=${getEjsonIdString(doc._id)}`
+    );
   };
 
   const updateFilter = <K extends keyof Filter>(index: number, field: K, value: Filter[K]) => {
@@ -220,7 +221,7 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
         {canWrite && (
           <button
             className="px-3.5 py-1 rounded-md text-[12px] font-medium bg-[#111] text-white cursor-pointer"
-            onClick={() => { setSelectedDoc(null); setIsEditorOpen(true); }}
+            onClick={openNew}
           >
             New
           </button>
@@ -269,8 +270,8 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
                 key={row.id}
                 className="group cursor-pointer hover:bg-gray-50"
                 onClick={() => {
-                  if (canWrite) { setSelectedDoc(row.original); setIsEditorOpen(true); }
-                  else { setViewDoc(row.original); }
+                  if (canWrite) openEdit(row.original);
+                  else setViewDoc(row.original);
                 }}
                 onContextMenu={(e) => {
                   e.preventDefault();
@@ -325,20 +326,10 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
           await fetchData();
         }}
         onView={() => setViewDoc(contextRow)}
-        onUpdate={() => { setSelectedDoc(contextRow); setIsEditorOpen(true); }}
+        onUpdate={() => openEdit(contextRow)}
         onRefresh={fetchData}
         onClose={() => { setMenuPos(null); setContextRow(null); }}
       />
-
-      {isEditorOpen && (
-        <JsonEditModal
-          open
-          document={selectedDoc || {}}
-          isNew={!selectedDoc}
-          onClose={() => setIsEditorOpen(false)}
-          onSave={handleSave}
-        />
-      )}
 
       <JsonViewerModal open={isJsonViewOpen} onClose={setIsJsonViewOpen} data={data} />
       <JsonViewerModal open={!!viewDoc} onClose={() => setViewDoc(null)} data={viewDoc} />
