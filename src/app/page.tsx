@@ -6,7 +6,7 @@ import RoomList from "@/components/rooms/RoomList";
 import CollectionList from "@/components/collections/CollectionList";
 import DocumentTable from "@/components/documents/DocumentTable";
 import AuditViewer from "@/components/AuditViewer";
-import { LogOut, Database, BarChart2 } from "lucide-react";
+import { LogOut, Database, BarChart2, FileText } from "lucide-react";
 import Link from "next/link";
 import { jwtDecode } from "jwt-decode";
 
@@ -19,6 +19,29 @@ export default function Home() {
   const [collection, setCollection] = useState<string | null>(null);
   const [tab, setTab] = useState<"data" | "audit">("data");
   const [tabLoading, setTabLoading] = useState(true);
+  const [draftCount, setDraftCount] = useState(0);
+
+  // Persist last-visited room + collection so navigating back from /edit restores them
+  useEffect(() => {
+    if (roomId) sessionStorage.setItem("nav:roomId", roomId);
+  }, [roomId]);
+  useEffect(() => {
+    if (collection) sessionStorage.setItem("nav:collection", collection);
+    else sessionStorage.removeItem("nav:collection");
+  }, [collection]);
+  useEffect(() => {
+    sessionStorage.setItem("nav:userRole", userRole);
+  }, [userRole]);
+
+  // Track draft count for topbar badge
+  useEffect(() => {
+    const count = () =>
+      Object.keys(localStorage).filter((k) => k.startsWith("mongoedit:draft:")).length;
+    setDraftCount(count());
+    const update = () => setDraftCount(count());
+    window.addEventListener("mongoedit:saved", update);
+    return () => window.removeEventListener("mongoedit:saved", update);
+  }, []);
 
   useEffect(() => {
     const t = localStorage.getItem("token");
@@ -31,6 +54,13 @@ export default function Home() {
       } else {
         setToken(t);
         setUserEmail((decoded as any).email || "");
+        // Restore last-visited room + collection (handles navigate-back from /edit)
+        const savedRoomId = sessionStorage.getItem("nav:roomId");
+        const savedCollection = sessionStorage.getItem("nav:collection");
+        const savedUserRole = sessionStorage.getItem("nav:userRole");
+        if (savedRoomId) setRoomId(savedRoomId);
+        if (savedCollection) setCollection(savedCollection);
+        if (savedUserRole) setUserRole(savedUserRole);
       }
     } catch {
       localStorage.removeItem("token");
@@ -77,6 +107,18 @@ export default function Home() {
           >
             <BarChart2 className="w-3.5 h-3.5" />
             Chart
+          </Link>
+          <Link
+            href="/drafts"
+            className="flex items-center gap-1.5 text-[#555] hover:text-[#7c8cf8] px-2 py-1 rounded-md hover:bg-[#1a1a1a] text-[12px] transition-all"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            Drafts
+            {draftCount > 0 && (
+              <span className="text-[10px] bg-amber-500 text-white rounded-full px-1.5 py-px leading-none">
+                {draftCount}
+              </span>
+            )}
           </Link>
         </div>
 

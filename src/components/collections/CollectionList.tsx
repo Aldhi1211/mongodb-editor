@@ -133,6 +133,31 @@ export default function CollectionList({ roomId, onSelect, activeCollection, use
     const [cloneLoading, setCloneLoading] = useState(false)
     const [cloneError, setCloneError] = useState('')
 
+    // collections that have a saved draft
+    const [draftSet, setDraftSet] = useState<Set<string>>(new Set())
+
+    useEffect(() => {
+        const prefix = `mongoedit:draft:${roomId}:`
+        const s = new Set<string>()
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i)
+            if (key?.startsWith(prefix)) s.add(key.slice(prefix.length))
+        }
+        setDraftSet(s)
+
+        // Re-scan when a draft is saved/deleted from the edit page
+        const update = () => {
+            const next = new Set<string>()
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i)
+                if (key?.startsWith(prefix)) next.add(key.slice(prefix.length))
+            }
+            setDraftSet(next)
+        }
+        window.addEventListener('mongoedit:saved', update)
+        return () => window.removeEventListener('mongoedit:saved', update)
+    }, [roomId])
+
     const token = () => localStorage.getItem('token')
     const authHeader = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` })
 
@@ -302,6 +327,12 @@ export default function CollectionList({ roomId, onSelect, activeCollection, use
                                     {col.name}
                                 </TooltipContent>
                             </Tooltip>
+                            {draftSet.has(col.name) && (
+                                <span
+                                    className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0"
+                                    title="Ada draft tersimpan"
+                                />
+                            )}
                         </div>
                     )
                 })}
