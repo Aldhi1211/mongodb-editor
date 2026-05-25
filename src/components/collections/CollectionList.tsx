@@ -137,23 +137,32 @@ export default function CollectionList({ roomId, onSelect, activeCollection, use
     const [draftSet, setDraftSet] = useState<Set<string>>(new Set())
 
     useEffect(() => {
-        const prefix = `mongoedit:draft:${roomId}:`
-        const s = new Set<string>()
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i)
-            if (key?.startsWith(prefix)) s.add(key.slice(prefix.length))
-        }
-        setDraftSet(s)
+        const addPrefix = `mongoedit:draft:${roomId}:`
+        const editPrefix = `mongoedit:editdraft:${roomId}:`
 
-        // Re-scan when a draft is saved/deleted from the edit page
-        const update = () => {
-            const next = new Set<string>()
+        const scan = () => {
+            const s = new Set<string>()
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i)
-                if (key?.startsWith(prefix)) next.add(key.slice(prefix.length))
+                if (!key) continue
+                if (key.startsWith(addPrefix)) {
+                    s.add(key.slice(addPrefix.length))
+                } else if (key.startsWith(editPrefix)) {
+                    try {
+                        const raw = localStorage.getItem(key)
+                        if (raw) {
+                            const data = JSON.parse(raw)
+                            if (data.collection) s.add(data.collection)
+                        }
+                    } catch { /* skip */ }
+                }
             }
-            setDraftSet(next)
+            return s
         }
+
+        setDraftSet(scan())
+
+        const update = () => setDraftSet(scan())
         window.addEventListener('mongoedit:saved', update)
         return () => window.removeEventListener('mongoedit:saved', update)
     }, [roomId])

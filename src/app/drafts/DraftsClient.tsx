@@ -5,21 +5,32 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FileText, Trash2 } from "lucide-react";
 
-const DRAFT_PREFIX = "mongoedit:draft:";
+const ADD_DRAFT_PREFIX = "mongoedit:draft:";
+const EDIT_DRAFT_PREFIX = "mongoedit:editdraft:";
 
 type Draft = {
   key: string;
+  type: "add" | "edit";
   roomId: string;
   collection: string;
+  docId?: string;
   value: string;
   savedAt: string | null;
+  originalDoc?: string;
 };
 
-function parseDraftKey(key: string): { roomId: string; collection: string } | null {
-  const rest = key.slice(DRAFT_PREFIX.length);
+function parseAddKey(key: string): { roomId: string; collection: string } | null {
+  const rest = key.slice(ADD_DRAFT_PREFIX.length);
   const colonIdx = rest.indexOf(":");
   if (colonIdx === -1) return null;
   return { roomId: rest.slice(0, colonIdx), collection: rest.slice(colonIdx + 1) };
+}
+
+function parseEditKey(key: string): { roomId: string; docId: string } | null {
+  const rest = key.slice(EDIT_DRAFT_PREFIX.length);
+  const colonIdx = rest.indexOf(":");
+  if (colonIdx === -1) return null;
+  return { roomId: rest.slice(0, colonIdx), docId: rest.slice(colonIdx + 1) };
 }
 
 function previewDoc(value: string): string {
@@ -49,25 +60,51 @@ export default function DraftsClient() {
 
   const loadDrafts = () => {
     const result: Draft[] = [];
+
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (!key?.startsWith(DRAFT_PREFIX)) continue;
-      const parsed = parseDraftKey(key);
-      if (!parsed) continue;
-      try {
-        const raw = localStorage.getItem(key);
-        const data = raw ? JSON.parse(raw) : {};
-        result.push({
-          key,
-          roomId: parsed.roomId,
-          collection: parsed.collection,
-          value: data.value ?? "{}",
-          savedAt: data.savedAt ?? null,
-        });
-      } catch {
-        // skip corrupted entry
+      if (!key) continue;
+
+      if (key.startsWith(ADD_DRAFT_PREFIX)) {
+        const parsed = parseAddKey(key);
+        if (!parsed) continue;
+        try {
+          const raw = localStorage.getItem(key);
+          const data = raw ? JSON.parse(raw) : {};
+          result.push({
+            key,
+            type: "add",
+            roomId: parsed.roomId,
+            collection: parsed.collection,
+            value: data.value ?? "{}",
+            savedAt: data.savedAt ?? null,
+          });
+        } catch {
+          // skip corrupted entry
+        }
+      } else if (key.startsWith(EDIT_DRAFT_PREFIX)) {
+        const parsed = parseEditKey(key);
+        if (!parsed) continue;
+        try {
+          const raw = localStorage.getItem(key);
+          const data = raw ? JSON.parse(raw) : {};
+          if (!data.collection) continue; // skip incomplete edit drafts
+          result.push({
+            key,
+            type: "edit",
+            roomId: parsed.roomId,
+            collection: data.collection,
+            docId: parsed.docId,
+            value: data.value ?? "{}",
+            savedAt: data.savedAt ?? null,
+            originalDoc: data.originalDoc,
+          });
+        } catch {
+          // skip corrupted entry
+        }
       }
     }
+
     result.sort((a, b) => {
       if (!a.savedAt) return 1;
       if (!b.savedAt) return -1;
@@ -78,7 +115,6 @@ export default function DraftsClient() {
 
   useEffect(() => {
     loadDrafts();
-    // Reload when navigating back from the edit page after a successful save
     window.addEventListener("mongoedit:saved", loadDrafts);
     return () => window.removeEventListener("mongoedit:saved", loadDrafts);
   }, []);
@@ -94,7 +130,14 @@ export default function DraftsClient() {
   };
 
   const handleContinue = (draft: Draft) => {
-    router.push(`/edit?roomId=${draft.roomId}&collection=${encodeURIComponent(draft.collection)}&mode=new`);
+    if (draft.type === "add") {
+      router.push(`/edit?roomId=${draft.roomId}&collection=${encodeURIComponent(draft.collection)}&mode=new`);
+    } else {
+      // Edit draft: navigate to edit page — draft in localStorage will be auto-restored
+      router.push(
+        `/edit?roomId=${draft.roomId}&collection=${encodeURIComponent(draft.collection)}&docId=${draft.docId}`
+      );
+    }
   };
 
   return (
@@ -130,7 +173,7 @@ export default function DraftsClient() {
             <FileText className="w-8 h-8 text-gray-200 mx-auto mb-3" />
             <p className="text-sm text-gray-400">Tidak ada draft tersimpan</p>
             <p className="text-xs text-gray-300 mt-1">
-              Draft dibuat otomatis saat kamu mulai menambah dokumen baru.
+              Draft dibuat otomatis saat kamu mulai menambah atau mengedit dokumen.
             </p>
           </div>
         ) : (
@@ -142,6 +185,9 @@ export default function DraftsClient() {
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 uppercase tracking-wide">
+                      {draft.type === "add" ? "New" : "Edit"}
+                    </span>
                     <span className="text-[13px] font-medium font-mono text-gray-900">
                       {draft.collection}
                     </span>
@@ -149,6 +195,11 @@ export default function DraftsClient() {
                       room: …{draft.roomId.slice(-6)}
                     </span>
                   </div>
+                  {draft.type === "edit" && draft.docId && (
+                    <p className="text-[11px] text-gray-400 font-mono truncate mb-0.5">
+                      _id: {draft.docId}
+                    </p>
+                  )}
                   <p className="text-[11px] text-gray-400 font-mono truncate">
                     {previewDoc(draft.value)}
                   </p>

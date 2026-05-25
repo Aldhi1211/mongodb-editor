@@ -8,6 +8,7 @@ import { ObjectId } from "bson";
 import { Button } from "@/components/ui/button";
 
 const DRAFT_KEY_PREFIX = "mongoedit:draft:";
+const EDIT_DRAFT_KEY_PREFIX = "mongoedit:editdraft:";
 
 export default function EditPageClient() {
   const router = useRouter();
@@ -16,17 +17,26 @@ export default function EditPageClient() {
   const roomId = searchParams.get("roomId") ?? "";
   const collection = searchParams.get("collection") ?? "";
   const isNew = searchParams.get("mode") === "new";
+  const docId = searchParams.get("docId") ?? "";
 
   const [value, setValue] = useState("{\n  \n}");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const [draftRestored, setDraftRestored] = useState(false);
+  const [showBackConfirm, setShowBackConfirm] = useState(false);
 
   const valueRef = useRef(value);
   const originalDocRef = useRef<any>(null);
-  const savedRef = useRef(false); // true after successful save — prevents cleanup from re-writing draft
-  const draftKey = `${DRAFT_KEY_PREFIX}${roomId}:${collection}`;
+  const savedRef = useRef(false);
+  const initialValueRef = useRef("{\n  \n}");
+
+  const draftKey = isNew
+    ? `${DRAFT_KEY_PREFIX}${roomId}:${collection}`
+    : `${EDIT_DRAFT_KEY_PREFIX}${roomId}:${docId}`;
+
+  // Whether drafting is enabled for this page instance
+  const draftEnabled = isNew || Boolean(docId);
 
   // Keep ref in sync with latest value (needed for closures in effects/cleanup)
   useEffect(() => {
@@ -40,7 +50,9 @@ export default function EditPageClient() {
       if (raw) {
         try {
           const draft = JSON.parse(raw);
-          setValue(draft.value ?? "{\n  \n}");
+          const v = draft.value ?? "{\n  \n}";
+          setValue(v);
+          initialValueRef.current = v;
           setDraftSavedAt(draft.savedAt ?? null);
           setDraftRestored(true);
         } catch {
@@ -48,7 +60,30 @@ export default function EditPageClient() {
         }
       }
     } else {
-      // Edit mode: document passed via sessionStorage from DocumentTable
+      // Edit mode: check localStorage draft first
+      if (docId) {
+        const draftRaw = localStorage.getItem(draftKey);
+        if (draftRaw) {
+          try {
+            const draft = JSON.parse(draftRaw);
+            if (draft.originalDoc) {
+              const doc = EJSON.parse(draft.originalDoc);
+              originalDocRef.current = doc;
+            }
+            const v = draft.value ?? "{}";
+            setValue(v);
+            initialValueRef.current = v;
+            setDraftSavedAt(draft.savedAt ?? null);
+            setDraftRestored(true);
+            sessionStorage.removeItem("edit_doc");
+            return;
+          } catch {
+            // corrupted draft, fall through to sessionStorage
+          }
+        }
+      }
+
+      // Fall back to document passed via sessionStorage from DocumentTable
       const raw = sessionStorage.getItem("edit_doc");
       if (raw) {
         sessionStorage.removeItem("edit_doc");
@@ -57,49 +92,60 @@ export default function EditPageClient() {
           originalDocRef.current = doc;
           const formatted = JSON.stringify(JSON.parse(EJSON.stringify(doc)), null, 2);
           setValue(formatted);
+          initialValueRef.current = formatted;
         } catch {
           setValue("{}");
+          initialValueRef.current = "{}";
         }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Debounced auto-save to localStorage (add mode only)
+  // Debounced auto-save to localStorage
   useEffect(() => {
-    if (!isNew) return;
+    if (!draftEnabled) return;
     const t = setTimeout(() => {
       const savedAt = new Date().toISOString();
-      localStorage.setItem(draftKey, JSON.stringify({ value, savedAt }));
+      const data: Record<string, any> = { value, savedAt };
+      if (!isNew && originalDocRef.current) {
+        data.originalDoc = EJSON.stringify(originalDocRef.current);
+        data.collection = collection;
+      }
+      localStorage.setItem(draftKey, JSON.stringify(data));
       setDraftSavedAt(savedAt);
       setDraftRestored(false);
     }, 500);
     return () => clearTimeout(t);
-  }, [value, isNew, draftKey]);
+  }, [value, draftKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save draft immediately on browser close / tab close
   useEffect(() => {
-    if (!isNew) return;
+    if (!draftEnabled) return;
     const handler = () => {
-      localStorage.setItem(
-        draftKey,
-        JSON.stringify({ value: valueRef.current, savedAt: new Date().toISOString() })
-      );
+      const data: Record<string, any> = { value: valueRef.current, savedAt: new Date().toISOString() };
+      if (!isNew && originalDocRef.current) {
+        data.originalDoc = EJSON.stringify(originalDocRef.current);
+        data.collection = collection;
+      }
+      localStorage.setItem(draftKey, JSON.stringify(data));
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [isNew, draftKey]);
+  }, [draftKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save draft on component unmount (handles client-side navigation via back button).
-  // Skipped if the document was already saved successfully to avoid re-creating the draft.
+  // Skipped if the document was already saved successfully or draft was discarded.
   useEffect(() => {
-    if (!isNew) return;
+    if (!draftEnabled) return;
     return () => {
       if (savedRef.current) return;
-      localStorage.setItem(
-        draftKey,
-        JSON.stringify({ value: valueRef.current, savedAt: new Date().toISOString() })
-      );
+      const data: Record<string, any> = { value: valueRef.current, savedAt: new Date().toISOString() };
+      if (!isNew && originalDocRef.current) {
+        data.originalDoc = EJSON.stringify(originalDocRef.current);
+        data.collection = collection;
+      }
+      localStorage.setItem(draftKey, JSON.stringify(data));
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -163,7 +209,7 @@ export default function EditPageClient() {
       }
 
       // Clear draft after successful save and mark so unmount cleanup doesn't re-create it
-      if (isNew) {
+      if (draftEnabled) {
         localStorage.removeItem(draftKey);
         savedRef.current = true;
       }
@@ -178,9 +224,43 @@ export default function EditPageClient() {
     }
   };
 
+  const handleBack = () => {
+    const hasChanges = value !== initialValueRef.current;
+    if (!hasChanges || !draftEnabled) {
+      router.back();
+      return;
+    }
+    setShowBackConfirm(true);
+  };
+
+  const handleDiscard = () => {
+    localStorage.removeItem(draftKey);
+    savedRef.current = true;
+    setShowBackConfirm(false);
+    router.back();
+  };
+
+  const handleSaveDraft = () => {
+    const data: Record<string, any> = { value: valueRef.current, savedAt: new Date().toISOString() };
+    if (!isNew && originalDocRef.current) {
+      data.originalDoc = EJSON.stringify(originalDocRef.current);
+      data.collection = collection;
+    }
+    localStorage.setItem(draftKey, JSON.stringify(data));
+    setShowBackConfirm(false);
+    router.back();
+  };
+
   const handleClearDraft = () => {
     localStorage.removeItem(draftKey);
-    setValue("{\n  \n}");
+    if (!isNew && originalDocRef.current) {
+      const formatted = JSON.stringify(JSON.parse(EJSON.stringify(originalDocRef.current)), null, 2);
+      setValue(formatted);
+      initialValueRef.current = formatted;
+    } else {
+      setValue("{\n  \n}");
+      initialValueRef.current = "{\n  \n}";
+    }
     setDraftSavedAt(null);
     setDraftRestored(false);
   };
@@ -193,7 +273,7 @@ export default function EditPageClient() {
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-200 flex-shrink-0">
         <button
-          onClick={() => router.back()}
+          onClick={handleBack}
           className="text-sm text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
         >
           ← Back
@@ -205,7 +285,7 @@ export default function EditPageClient() {
           {isNew ? "New Document" : "Edit Document"}
         </span>
 
-        {isNew && draftSavedAt && (
+        {draftEnabled && draftSavedAt && (
           <span className="flex items-center gap-1.5 text-[11px] text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 ml-1 select-none">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
             {draftRestored
@@ -215,7 +295,7 @@ export default function EditPageClient() {
         )}
 
         <div className="ml-auto flex items-center gap-2">
-          {isNew && draftSavedAt && (
+          {draftEnabled && draftSavedAt && (
             <button
               onClick={handleClearDraft}
               className="text-xs text-gray-400 hover:text-red-500 cursor-pointer px-2 py-1 rounded transition-colors"
@@ -225,7 +305,7 @@ export default function EditPageClient() {
           )}
           <Button
             variant="outline"
-            onClick={() => router.back()}
+            onClick={handleBack}
             className="cursor-pointer"
           >
             Cancel
@@ -261,6 +341,42 @@ export default function EditPageClient() {
       {error && (
         <div className="px-4 py-2 bg-red-50 border-t border-red-200 text-red-600 text-sm flex-shrink-0">
           {error}
+        </div>
+      )}
+
+      {/* Back confirmation dialog */}
+      {showBackConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-xl w-80 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100">
+              <p className="text-[13px] font-semibold text-gray-800">Ada perubahan yang belum disimpan</p>
+            </div>
+            <div className="px-4 py-3">
+              <p className="text-[12px] text-gray-500">Simpan sebagai draft atau buang perubahan?</p>
+            </div>
+            <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between gap-2">
+              <button
+                onClick={handleDiscard}
+                className="px-3 py-1.5 rounded-lg text-[12px] text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors cursor-pointer"
+              >
+                Buang
+              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowBackConfirm(false)}
+                  className="px-3 py-1.5 rounded-lg text-[12px] text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleSaveDraft}
+                  className="px-3 py-1.5 rounded-lg text-[12px] font-medium bg-gray-900 text-white hover:bg-gray-700 cursor-pointer transition-colors"
+                >
+                  Simpan Draft
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
