@@ -22,10 +22,15 @@ export default function CollectionContextMenu({
 
     const handle = (fn: () => void) => () => { fn(); onClose() }
 
+    const MENU_W = 192 // w-48
+    const MENU_H = userRole !== "viewer" ? 260 : 100
+    const x = Math.min(pos.x, window.innerWidth - MENU_W - 8)
+    const y = Math.min(pos.y, window.innerHeight - MENU_H - 8)
+
     return (
         <DropdownMenu open onOpenChange={(open) => { if (!open) onClose() }}>
             <DropdownMenuContent
-                style={{ position: "fixed", left: pos.x, top: pos.y }}
+                style={{ position: "fixed", left: Math.max(8, x), top: Math.max(8, y) }}
                 className="w-48"
             >
                 <DropdownMenuItem onClick={handle(() => navigator.clipboard.writeText(collectionName))} className="flex items-center gap-2">

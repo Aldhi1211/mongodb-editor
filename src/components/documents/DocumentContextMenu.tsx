@@ -18,6 +18,11 @@ export default function DocumentContextMenu({ pos, onDelete, onUpdate, onView, o
         }
     }
 
+    const MENU_W = 160 // w-40
+    const MENU_H = userRole !== "viewer" ? 160 : 110
+    const x = Math.min(pos.x, window.innerWidth - MENU_W - 8)
+    const y = Math.min(pos.y, window.innerHeight - MENU_H - 8)
+
     return (
         <DropdownMenu
             open
@@ -26,7 +31,7 @@ export default function DocumentContextMenu({ pos, onDelete, onUpdate, onView, o
             }}
         >
             <DropdownMenuContent
-                style={{ position: "fixed", left: pos.x, top: pos.y }}
+                style={{ position: "fixed", left: Math.max(8, x), top: Math.max(8, y) }}
                 className="w-40"
             >
                 <DropdownMenuItem onClick={() => { onView(); onClose(); }} className="flex items-center gap-2">
