@@ -90,7 +90,7 @@ export default function EditPageClient() {
         try {
           const doc = EJSON.parse(raw);
           originalDocRef.current = doc;
-          const formatted = JSON.stringify(JSON.parse(EJSON.stringify(doc)), null, 2);
+          const formatted = JSON.stringify(EJSON.serialize(doc, { relaxed: false }), null, 2);
           setValue(formatted);
           initialValueRef.current = formatted;
         } catch {
@@ -254,7 +254,7 @@ export default function EditPageClient() {
   const handleClearDraft = () => {
     localStorage.removeItem(draftKey);
     if (!isNew && originalDocRef.current) {
-      const formatted = JSON.stringify(JSON.parse(EJSON.stringify(originalDocRef.current)), null, 2);
+      const formatted = JSON.stringify(EJSON.serialize(originalDocRef.current, { relaxed: false }), null, 2);
       setValue(formatted);
       initialValueRef.current = formatted;
     } else {
