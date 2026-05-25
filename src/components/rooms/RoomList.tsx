@@ -28,9 +28,10 @@ type RoomListProps = {
   onSelect: (id: string, role: string) => void;
   activeRoomId: string | null;
   onReady?: () => void;
+  onRoleResolved?: (role: string) => void;
 };
 
-export default function RoomList({ onSelect, activeRoomId, onReady }: RoomListProps) {
+export default function RoomList({ onSelect, activeRoomId, onReady, onRoleResolved }: RoomListProps) {
   const { rooms, loading, reload } = useRooms();
   const currentUserId = typeof window !== "undefined" ? getCurrentUserId() : null;
   const onReadyCalled = useRef(false);
@@ -41,6 +42,17 @@ export default function RoomList({ onSelect, activeRoomId, onReady }: RoomListPr
       onReady?.();
     }
   }, [loading]);
+
+  // When rooms finish loading and there is already an activeRoomId (restored from
+  // sessionStorage), resolve the correct role from the actual room data.
+  useEffect(() => {
+    if (loading || !rooms.length || !activeRoomId || !onRoleResolved) return;
+    const activeRoom = rooms.find(r => r._id === activeRoomId);
+    if (!activeRoom) return;
+    const uid = getCurrentUserId();
+    const myMember = activeRoom.members?.find((m: any) => m.userId === uid);
+    onRoleResolved(myMember?.role ?? "viewer");
+  }, [loading, rooms]);
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [inviteRoomId, setInviteRoomId] = useState<string | null>(null);

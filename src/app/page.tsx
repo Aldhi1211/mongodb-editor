@@ -36,10 +36,6 @@ export default function Home() {
     if (collection) sessionStorage.setItem("nav:collection", collection);
     else sessionStorage.removeItem("nav:collection");
   }, [collection]);
-  useEffect(() => {
-    if (!navRestored.current) return;
-    sessionStorage.setItem("nav:userRole", userRole);
-  }, [userRole]);
 
   // Track draft count for topbar badge
   useEffect(() => {
@@ -62,13 +58,13 @@ export default function Home() {
       } else {
         setToken(t);
         setUserEmail((decoded as any).email || "");
-        // Restore last-visited room + collection (handles navigate-back from /edit)
+        // Restore last-visited room + collection (handles navigate-back from /edit).
+        // userRole is NOT stored here — RoomList.onRoleResolved derives it from
+        // live room data once rooms finish loading, avoiding stale cached values.
         const savedRoomId = sessionStorage.getItem("nav:roomId");
         const savedCollection = sessionStorage.getItem("nav:collection");
-        const savedUserRole = sessionStorage.getItem("nav:userRole");
         if (savedRoomId) setRoomId(savedRoomId);
         if (savedCollection) setCollection(savedCollection);
-        if (savedUserRole) setUserRole(savedUserRole);
         navRestored.current = true;
       }
     } catch {
@@ -187,6 +183,7 @@ export default function Home() {
             <RoomList
               activeRoomId={roomId}
               onSelect={(id, role) => { setRoomId(id); setUserRole(role); setCollection(null); }}
+              onRoleResolved={setUserRole}
               onReady={() => setTabLoading(false)}
             />
             {roomId && (
