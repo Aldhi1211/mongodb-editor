@@ -5,7 +5,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import Editor from "@monaco-editor/react";
-import { toShellString } from "@/lib/ejsonShell";
+import { EJSON } from "bson";
+
+function formatEjson(data: any): string {
+  try {
+    return JSON.stringify(JSON.parse(EJSON.stringify(data)), null, 2);
+  } catch {
+    return JSON.stringify(data, null, 2);
+  }
+}
 
 export default function JsonViewerModal({ open, onClose, data }: any) {
   return (
@@ -22,7 +30,7 @@ export default function JsonViewerModal({ open, onClose, data }: any) {
           <Editor
             height="100%"
             defaultLanguage="json"
-            value={toShellString(data)}
+            value={formatEjson(data)}
             options={{
               readOnly: true,
               minimap: { enabled: false },
