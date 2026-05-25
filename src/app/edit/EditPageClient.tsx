@@ -142,7 +142,7 @@ export default function EditPageClient() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(parsed),
+          body: value,
         });
       } else {
         const id = getIdValue(originalDocRef.current?._id);
@@ -152,7 +152,7 @@ export default function EditPageClient() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(parsed),
+          body: value,
         });
       }
 
