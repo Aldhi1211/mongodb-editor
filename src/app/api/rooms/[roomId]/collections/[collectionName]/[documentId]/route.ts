@@ -33,16 +33,16 @@ export async function PUT(
     // }
 
     const db = await getRoomDb(roomId)
-    let _id: any
-
-    if (ObjectId.isValid(documentId)) {
-        _id = new ObjectId(documentId)
-    } else {
-        _id = documentId
-    }
-
     const collection = db.collection(collectionName)
-    const before = await collection.findOne({ _id })
+
+    // Try ObjectId first; if not found fall back to plain string (handles string _id
+    // that looks like a valid hex, e.g. inserted without ObjectId wrapper)
+    let _id: any = ObjectId.isValid(documentId) ? new ObjectId(documentId) : documentId
+    let before = await collection.findOne({ _id })
+    if (!before && ObjectId.isValid(documentId)) {
+        _id = documentId
+        before = await collection.findOne({ _id })
+    }
 
     if (!before) return NextResponse.json({ error: 'Document not found' }, { status: 404 })
 
@@ -103,8 +103,12 @@ export async function DELETE(
     const db = await getRoomDb(roomId)
     const collection = db.collection(collectionName)
 
-    const _id = new ObjectId(documentId)
-    const before = await collection.findOne({ _id })
+    let _id: any = ObjectId.isValid(documentId) ? new ObjectId(documentId) : documentId
+    let before = await collection.findOne({ _id })
+    if (!before && ObjectId.isValid(documentId)) {
+        _id = documentId
+        before = await collection.findOne({ _id })
+    }
     if (!before) return NextResponse.json({ error: 'Document not found' }, { status: 404 })
 
     await collection.deleteOne({ _id })
