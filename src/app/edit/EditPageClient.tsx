@@ -25,6 +25,7 @@ export default function EditPageClient() {
 
   const valueRef = useRef(value);
   const originalDocRef = useRef<any>(null);
+  const savedRef = useRef(false); // true after successful save — prevents cleanup from re-writing draft
   const draftKey = `${DRAFT_KEY_PREFIX}${roomId}:${collection}`;
 
   // Keep ref in sync with latest value (needed for closures in effects/cleanup)
@@ -89,10 +90,12 @@ export default function EditPageClient() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [isNew, draftKey]);
 
-  // Save draft on component unmount (handles client-side navigation via back button)
+  // Save draft on component unmount (handles client-side navigation via back button).
+  // Skipped if the document was already saved successfully to avoid re-creating the draft.
   useEffect(() => {
     if (!isNew) return;
     return () => {
+      if (savedRef.current) return;
       localStorage.setItem(
         draftKey,
         JSON.stringify({ value: valueRef.current, savedAt: new Date().toISOString() })
@@ -158,8 +161,11 @@ export default function EditPageClient() {
         throw new Error(err.error || err.message || "Failed to save");
       }
 
-      // Clear draft after successful save
-      if (isNew) localStorage.removeItem(draftKey);
+      // Clear draft after successful save and mark so unmount cleanup doesn't re-create it
+      if (isNew) {
+        localStorage.removeItem(draftKey);
+        savedRef.current = true;
+      }
 
       // Notify DocumentTable to refresh its data
       window.dispatchEvent(new CustomEvent("mongoedit:saved"));
