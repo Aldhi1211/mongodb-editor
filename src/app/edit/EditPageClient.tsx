@@ -30,6 +30,7 @@ export default function EditPageClient() {
   const originalDocRef = useRef<any>(null);
   const savedRef = useRef(false);
   const initialValueRef = useRef("{\n  \n}");
+  const hasChangesRef = useRef(false);
 
   const draftKey = isNew
     ? `${DRAFT_KEY_PREFIX}${roomId}:${collection}`
@@ -38,9 +39,10 @@ export default function EditPageClient() {
   // Whether drafting is enabled for this page instance
   const draftEnabled = isNew || Boolean(docId);
 
-  // Keep ref in sync with latest value (needed for closures in effects/cleanup)
+  // Keep refs in sync with latest value
   useEffect(() => {
     valueRef.current = value;
+    hasChangesRef.current = value !== initialValueRef.current;
   }, [value]);
 
   // Initialize editor on mount
@@ -102,9 +104,10 @@ export default function EditPageClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Debounced auto-save to localStorage
+  // Debounced auto-save to localStorage — only when there are actual changes
   useEffect(() => {
     if (!draftEnabled) return;
+    if (!hasChangesRef.current) return;
     const t = setTimeout(() => {
       const savedAt = new Date().toISOString();
       const data: Record<string, any> = { value, savedAt };
@@ -119,10 +122,11 @@ export default function EditPageClient() {
     return () => clearTimeout(t);
   }, [value, draftKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Save draft immediately on browser close / tab close
+  // Save draft immediately on browser close / tab close — only when there are actual changes
   useEffect(() => {
     if (!draftEnabled) return;
     const handler = () => {
+      if (!hasChangesRef.current) return;
       const data: Record<string, any> = { value: valueRef.current, savedAt: new Date().toISOString() };
       if (!isNew && originalDocRef.current) {
         data.originalDoc = EJSON.stringify(originalDocRef.current);
@@ -134,12 +138,13 @@ export default function EditPageClient() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [draftKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Save draft on component unmount (handles client-side navigation via back button).
-  // Skipped if the document was already saved successfully or draft was discarded.
+  // Save draft on component unmount — only when there are actual unsaved changes.
+  // Skipped if the document was already saved/discarded (savedRef) or nothing changed.
   useEffect(() => {
     if (!draftEnabled) return;
     return () => {
       if (savedRef.current) return;
+      if (!hasChangesRef.current) return;
       const data: Record<string, any> = { value: valueRef.current, savedAt: new Date().toISOString() };
       if (!isNew && originalDocRef.current) {
         data.originalDoc = EJSON.stringify(originalDocRef.current);
