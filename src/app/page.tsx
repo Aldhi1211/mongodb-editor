@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import RoomList from "@/components/rooms/RoomList";
 import CollectionList from "@/components/collections/CollectionList";
@@ -21,15 +21,23 @@ export default function Home() {
   const [tabLoading, setTabLoading] = useState(true);
   const [draftCount, setDraftCount] = useState(0);
 
-  // Persist last-visited room + collection so navigating back from /edit restores them
+  // Guard: don't let save effects overwrite sessionStorage before restore has run
+  const navRestored = useRef(false);
+
+  // Persist last-visited room + collection so navigating back from /edit restores them.
+  // Only runs after navRestored is true to avoid the initial "viewer" default overwriting
+  // the previously saved role before the auth effect has a chance to restore it.
   useEffect(() => {
+    if (!navRestored.current) return;
     if (roomId) sessionStorage.setItem("nav:roomId", roomId);
   }, [roomId]);
   useEffect(() => {
+    if (!navRestored.current) return;
     if (collection) sessionStorage.setItem("nav:collection", collection);
     else sessionStorage.removeItem("nav:collection");
   }, [collection]);
   useEffect(() => {
+    if (!navRestored.current) return;
     sessionStorage.setItem("nav:userRole", userRole);
   }, [userRole]);
 
@@ -61,6 +69,7 @@ export default function Home() {
         if (savedRoomId) setRoomId(savedRoomId);
         if (savedCollection) setCollection(savedCollection);
         if (savedUserRole) setUserRole(savedUserRole);
+        navRestored.current = true;
       }
     } catch {
       localStorage.removeItem("token");
