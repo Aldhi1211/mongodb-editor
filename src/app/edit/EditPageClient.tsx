@@ -106,6 +106,7 @@ export default function EditPageClient() {
 
   function getIdValue(id: any): string | null {
     if (!id) return null;
+    if (typeof id === "string") return id;
     if (id instanceof ObjectId) return id.toHexString();
     if (id?.$oid) return id.$oid;
     return null;
