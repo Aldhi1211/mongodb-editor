@@ -76,7 +76,12 @@ export default function DraftsClient() {
     setDrafts(result);
   };
 
-  useEffect(() => { loadDrafts(); }, []);
+  useEffect(() => {
+    loadDrafts();
+    // Reload when navigating back from the edit page after a successful save
+    window.addEventListener("mongoedit:saved", loadDrafts);
+    return () => window.removeEventListener("mongoedit:saved", loadDrafts);
+  }, []);
 
   const handleDelete = (key: string) => {
     localStorage.removeItem(key);
