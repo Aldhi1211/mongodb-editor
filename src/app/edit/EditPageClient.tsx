@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Editor from "@monaco-editor/react";
 import { EJSON } from "bson";
 import { ObjectId } from "bson";
-import { ArrowLeft, Check, Clock, FileWarning, RotateCcw, X } from "lucide-react";
+import { ArrowLeft, Check, Clock, FileWarning, Moon, RotateCcw, Sun, X } from "lucide-react";
+import { useTheme } from "@/hooks/useTheme";
 
 const DRAFT_KEY_PREFIX = "mongoedit:draft:";
 const EDIT_DRAFT_KEY_PREFIX = "mongoedit:editdraft:";
@@ -13,6 +14,7 @@ const EDIT_DRAFT_KEY_PREFIX = "mongoedit:editdraft:";
 export default function EditPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { isDark, toggle: toggleTheme } = useTheme();
 
   const roomId = searchParams.get("roomId") ?? "";
   const collection = searchParams.get("collection") ?? "";
@@ -252,26 +254,46 @@ export default function EditPageClient() {
   const formatTime = (iso: string) =>
     new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
+  // ── Theme tokens ────────────────────────────────────────────────────────────
+  const t = {
+    page:        isDark ? "bg-[#0d1117]"                    : "bg-gray-50",
+    header:      isDark ? "bg-[#161b22] border-white/[0.06]" : "bg-white border-gray-200",
+    divider:     isDark ? "bg-white/10"                     : "bg-gray-200",
+    textPrimary: isDark ? "text-gray-100"                   : "text-gray-900",
+    textMuted:   isDark ? "text-gray-400"                   : "text-gray-500",
+    textFaint:   isDark ? "text-gray-500"                   : "text-gray-400",
+    btnGhost:    isDark
+      ? "text-gray-400 hover:text-gray-200 hover:bg-white/[0.06]"
+      : "text-gray-500 hover:text-gray-800 hover:bg-gray-100",
+    dialog:      isDark ? "bg-[#161b22] border-white/[0.1]" : "bg-white border-gray-200",
+    dialogText:  isDark ? "text-gray-100"                   : "text-gray-800",
+    dialogSub:   isDark ? "text-gray-400"                   : "text-gray-500",
+    errorBar:    isDark
+      ? "bg-red-500/10 border-red-500/20 text-red-400"
+      : "bg-red-50 border-red-200 text-red-600",
+    monacoTheme: isDark ? "vs-dark"                         : "light",
+  };
+
   return (
-    <div className="flex flex-col h-screen bg-[#0d1117]">
+    <div className={`flex flex-col h-screen ${t.page}`}>
       {/* ── Header ── */}
-      <div className="flex items-center gap-0 px-3 h-11 border-b border-white/[0.06] flex-shrink-0 bg-[#161b22]">
+      <div className={`flex items-center gap-0 px-3 h-11 border-b flex-shrink-0 ${t.header}`}>
         {/* Back */}
         <button
           onClick={handleBack}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[13px] text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] transition-colors cursor-pointer mr-1"
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[13px] cursor-pointer transition-colors mr-1 ${t.btnGhost}`}
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           Back
         </button>
 
-        <div className="w-px h-4 bg-white/10 mx-1" />
+        <div className={`w-px h-4 mx-1 ${t.divider}`} />
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-1.5 px-2">
-          <span className="text-[12px] text-gray-500 font-mono">{collection}</span>
-          <span className="text-gray-600 text-[12px]">/</span>
-          <span className="text-[12px] font-medium text-gray-300">
+          <span className={`text-[12px] font-mono ${t.textMuted}`}>{collection}</span>
+          <span className={`text-[12px] ${t.textFaint}`}>/</span>
+          <span className={`text-[12px] font-medium ${t.textPrimary}`}>
             {isNew ? "New Document" : "Edit Document"}
           </span>
         </div>
@@ -280,8 +302,8 @@ export default function EditPageClient() {
         <span
           className={`ml-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase ${
             isNew
-              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-              : "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+              ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/25"
+              : "bg-blue-500/10 text-blue-600 border border-blue-500/25"
           }`}
         >
           {isNew ? "New" : "Edit"}
@@ -289,37 +311,55 @@ export default function EditPageClient() {
 
         {/* Draft status */}
         {draftEnabled && draftSavedAt && (
-          <div className="flex items-center gap-1.5 ml-3 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 select-none">
-            <Clock className="w-2.5 h-2.5 text-amber-400" />
-            <span className="text-[10px] text-amber-400 font-medium">
+          <div className="flex items-center gap-1.5 ml-3 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/25 select-none">
+            <Clock className="w-2.5 h-2.5 text-amber-500" />
+            <span className="text-[10px] text-amber-600 font-medium">
               {draftRestored ? "Draft restored" : "Auto-saved"} · {formatTime(draftSavedAt)}
             </span>
           </div>
         )}
 
-        {/* Actions */}
-        <div className="ml-auto flex items-center gap-1.5">
+        {/* Right-side actions */}
+        <div className="ml-auto flex items-center gap-1">
+          {/* Reset draft */}
           {draftEnabled && draftSavedAt && (
             <button
               onClick={handleClearDraft}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] text-gray-500 hover:text-red-400 hover:bg-red-500/10 cursor-pointer transition-colors"
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] cursor-pointer transition-colors ${
+                isDark
+                  ? "text-gray-500 hover:text-red-400 hover:bg-red-500/10"
+                  : "text-gray-400 hover:text-red-500 hover:bg-red-50"
+              }`}
             >
               <RotateCcw className="w-3 h-3" />
               Reset draft
             </button>
           )}
 
+          {/* Theme toggle */}
+          <button
+            onClick={toggleTheme}
+            title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            className={`w-8 h-8 flex items-center justify-center rounded-md cursor-pointer transition-colors ${t.btnGhost}`}
+          >
+            {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+          </button>
+
+          <div className={`w-px h-4 mx-0.5 ${t.divider}`} />
+
+          {/* Cancel */}
           <button
             onClick={handleBack}
-            className="px-3 py-1.5 rounded-md text-[12px] text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] cursor-pointer transition-colors"
+            className={`px-3 py-1.5 rounded-md text-[12px] cursor-pointer transition-colors ${t.btnGhost}`}
           >
             Cancel
           </button>
 
+          {/* Save */}
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-[12px] font-medium bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white cursor-pointer transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-[12px] font-medium bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white cursor-pointer transition-colors ml-1"
           >
             {saving ? (
               <>
@@ -343,7 +383,7 @@ export default function EditPageClient() {
           defaultLanguage="json"
           value={value}
           onChange={(v) => setValue(v ?? "")}
-          theme="vs-dark"
+          theme={t.monacoTheme}
           options={{
             minimap: { enabled: false },
             fontSize: 13,
@@ -366,33 +406,33 @@ export default function EditPageClient() {
 
       {/* ── Error bar ── */}
       {error && (
-        <div className="flex items-start gap-2.5 px-4 py-2.5 bg-red-500/10 border-t border-red-500/20 text-red-400 text-[12px] flex-shrink-0">
+        <div className={`flex items-start gap-2.5 px-4 py-2.5 border-t text-[12px] flex-shrink-0 ${t.errorBar}`}>
           <FileWarning className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
           <span className="font-mono leading-snug">{error}</span>
         </div>
       )}
 
-      {/* ── Back confirmation dialog ── */}
+      {/* ── Unsaved-changes dialog ── */}
       {showBackConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#161b22] border border-white/[0.1] rounded-xl shadow-2xl w-[360px] overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className={`border rounded-xl shadow-2xl w-[360px] overflow-hidden ${t.dialog}`}>
             <div className="px-5 pt-5 pb-4">
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <FileWarning className="w-4 h-4 text-amber-400" />
+                  <FileWarning className="w-4 h-4 text-amber-500" />
                 </div>
                 <div>
-                  <p className="text-[13px] font-semibold text-gray-100 mb-1">Unsaved changes</p>
-                  <p className="text-[12px] text-gray-400 leading-relaxed">
-                    You have unsaved changes. Save them as a draft to continue later, or discard to leave without saving.
+                  <p className={`text-[13px] font-semibold mb-1 ${t.dialogText}`}>Unsaved changes</p>
+                  <p className={`text-[12px] leading-relaxed ${t.dialogSub}`}>
+                    Save as a draft to continue later, or discard to leave without saving.
                   </p>
                 </div>
               </div>
             </div>
-            <div className="px-5 pb-5 flex items-center justify-between gap-2">
+            <div className={`px-5 pb-5 flex items-center justify-between gap-2`}>
               <button
                 onClick={handleDiscard}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] text-red-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
                 Discard
@@ -400,7 +440,7 @@ export default function EditPageClient() {
               <div className="flex gap-2">
                 <button
                   onClick={() => setShowBackConfirm(false)}
-                  className="px-3.5 py-1.5 rounded-lg text-[12px] text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] transition-colors cursor-pointer"
+                  className={`px-3.5 py-1.5 rounded-lg text-[12px] cursor-pointer transition-colors ${t.btnGhost}`}
                 >
                   Stay
                 </button>
