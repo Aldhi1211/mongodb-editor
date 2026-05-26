@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { FileText, Trash2 } from "lucide-react";
+import { ArrowLeft, Clock, FilePlus, FilePen, Trash2, FileText, ArrowRight } from "lucide-react";
 
 const ADD_DRAFT_PREFIX = "mongoedit:draft:";
 const EDIT_DRAFT_PREFIX = "mongoedit:editdraft:";
@@ -36,16 +36,28 @@ function parseEditKey(key: string): { roomId: string; docId: string } | null {
 function previewDoc(value: string): string {
   try {
     const obj = JSON.parse(value);
-    const keys = Object.keys(obj);
+    const keys = Object.keys(obj).filter(k => k !== "_id");
     if (keys.length === 0) return "empty document";
-    const shown = keys.slice(0, 4).join(", ");
-    return keys.length > 4 ? `${shown}, …` : shown;
+    const shown = keys.slice(0, 5).join(", ");
+    return keys.length > 5 ? `${shown}, +${keys.length - 5} more` : shown;
   } catch {
     return value.slice(0, 80).trim();
   }
 }
 
-function formatTime(iso: string): string {
+function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function formatAbsoluteTime(iso: string): string {
   return new Date(iso).toLocaleString([], {
     month: "short",
     day: "numeric",
@@ -79,16 +91,14 @@ export default function DraftsClient() {
             value: data.value ?? "{}",
             savedAt: data.savedAt ?? null,
           });
-        } catch {
-          // skip corrupted entry
-        }
+        } catch {}
       } else if (key.startsWith(EDIT_DRAFT_PREFIX)) {
         const parsed = parseEditKey(key);
         if (!parsed) continue;
         try {
           const raw = localStorage.getItem(key);
           const data = raw ? JSON.parse(raw) : {};
-          if (!data.collection) continue; // skip incomplete edit drafts
+          if (!data.collection) continue;
           result.push({
             key,
             type: "edit",
@@ -99,9 +109,7 @@ export default function DraftsClient() {
             savedAt: data.savedAt ?? null,
             originalDoc: data.originalDoc,
           });
-        } catch {
-          // skip corrupted entry
-        }
+        } catch {}
       }
     }
 
@@ -133,7 +141,6 @@ export default function DraftsClient() {
     if (draft.type === "add") {
       router.push(`/edit?roomId=${draft.roomId}&collection=${encodeURIComponent(draft.collection)}&mode=new`);
     } else {
-      // Edit draft: navigate to edit page — draft in localStorage will be auto-restored
       router.push(
         `/edit?roomId=${draft.roomId}&collection=${encodeURIComponent(draft.collection)}&docId=${draft.docId}`
       );
@@ -141,92 +148,141 @@ export default function DraftsClient() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-5 h-12 border-b border-gray-200 flex-shrink-0">
+    <div className="min-h-screen bg-[#0d1117] text-gray-100">
+      {/* ── Header ── */}
+      <div className="flex items-center gap-2 px-4 h-12 border-b border-white/[0.06] bg-[#161b22] sticky top-0 z-10">
         <Link
           href="/"
-          className="text-sm text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[13px] text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] transition-colors"
         >
-          ← Back
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Back
         </Link>
-        <div className="h-4 w-px bg-gray-200" />
-        <span className="text-sm font-medium text-gray-900">Drafts</span>
+
+        <div className="w-px h-4 bg-white/10 mx-1" />
+
+        <span className="text-[13px] font-medium text-gray-200">Drafts</span>
+
         {drafts.length > 0 && (
-          <span className="text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+          <span className="text-[10px] font-semibold text-gray-500 bg-white/[0.06] border border-white/[0.08] px-2 py-0.5 rounded-full">
             {drafts.length}
           </span>
         )}
+
         {drafts.length > 1 && (
           <button
             onClick={handleDeleteAll}
-            className="ml-auto text-xs text-gray-400 hover:text-red-500 cursor-pointer transition-colors"
+            className="ml-auto flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] text-gray-500 hover:text-red-400 hover:bg-red-500/10 cursor-pointer transition-colors"
           >
+            <Trash2 className="w-3 h-3" />
             Clear all
           </button>
         )}
       </div>
 
-      <div className="max-w-2xl mx-auto px-5 py-8">
+      {/* ── Content ── */}
+      <div className="max-w-2xl mx-auto px-4 py-8">
         {drafts.length === 0 ? (
-          <div className="text-center py-20">
-            <FileText className="w-8 h-8 text-gray-200 mx-auto mb-3" />
-            <p className="text-sm text-gray-400">Tidak ada draft tersimpan</p>
-            <p className="text-xs text-gray-300 mt-1">
-              Draft dibuat otomatis saat kamu mulai menambah atau mengedit dokumen.
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mb-4">
+              <FileText className="w-6 h-6 text-gray-600" />
+            </div>
+            <p className="text-[14px] font-medium text-gray-400 mb-1.5">No drafts saved</p>
+            <p className="text-[12px] text-gray-600 max-w-xs leading-relaxed">
+              Drafts are created automatically when you start adding or editing a document.
             </p>
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {drafts.map((draft) => (
-              <div
-                key={draft.key}
-                className="flex items-start gap-4 p-4 rounded-xl border border-gray-200 hover:border-gray-300 transition-colors"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 uppercase tracking-wide">
-                      {draft.type === "add" ? "New" : "Edit"}
-                    </span>
-                    <span className="text-[13px] font-medium font-mono text-gray-900">
-                      {draft.collection}
-                    </span>
-                    <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded font-mono">
-                      room: …{draft.roomId.slice(-6)}
-                    </span>
+            {drafts.map((draft) => {
+              const isAdd = draft.type === "add";
+              return (
+                <div
+                  key={draft.key}
+                  className="group relative flex items-start gap-4 p-4 rounded-xl bg-[#161b22] border border-white/[0.06] hover:border-white/[0.12] transition-all"
+                >
+                  {/* Type icon */}
+                  <div
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                      isAdd
+                        ? "bg-emerald-500/10 border border-emerald-500/20"
+                        : "bg-blue-500/10 border border-blue-500/20"
+                    }`}
+                  >
+                    {isAdd ? (
+                      <FilePlus className="w-4 h-4 text-emerald-400" />
+                    ) : (
+                      <FilePen className="w-4 h-4 text-blue-400" />
+                    )}
                   </div>
-                  {draft.type === "edit" && draft.docId && (
-                    <p className="text-[11px] text-gray-400 font-mono truncate mb-0.5">
-                      _id: {draft.docId}
-                    </p>
-                  )}
-                  <p className="text-[11px] text-gray-400 font-mono truncate">
-                    {previewDoc(draft.value)}
-                  </p>
-                  {draft.savedAt && (
-                    <p className="text-[11px] text-gray-300 mt-1.5">
-                      Disimpan {formatTime(draft.savedAt)}
-                    </p>
-                  )}
-                </div>
 
-                <div className="flex items-center gap-2 flex-shrink-0 mt-0.5">
-                  <button
-                    onClick={() => handleDelete(draft.key)}
-                    className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-                    title="Hapus draft"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => handleContinue(draft)}
-                    className="px-3 py-1.5 rounded-lg text-[12px] font-medium bg-gray-900 text-white hover:bg-gray-700 cursor-pointer transition-colors"
-                  >
-                    Lanjut →
-                  </button>
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    {/* Top row */}
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span
+                        className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded ${
+                          isAdd
+                            ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                            : "bg-blue-500/10 text-blue-500 border border-blue-500/20"
+                        }`}
+                      >
+                        {isAdd ? "New" : "Edit"}
+                      </span>
+                      <span className="text-[13px] font-semibold font-mono text-gray-200 truncate">
+                        {draft.collection}
+                      </span>
+                      <span className="text-[10px] text-gray-600 font-mono bg-white/[0.04] px-1.5 py-0.5 rounded flex-shrink-0">
+                        …{draft.roomId.slice(-6)}
+                      </span>
+                    </div>
+
+                    {/* Doc ID for edit drafts */}
+                    {!isAdd && draft.docId && (
+                      <p className="text-[11px] text-gray-500 font-mono truncate mb-1">
+                        <span className="text-gray-600">_id:</span> {draft.docId}
+                      </p>
+                    )}
+
+                    {/* Field preview */}
+                    <p className="text-[11px] text-gray-500 font-mono truncate">
+                      {previewDoc(draft.value)}
+                    </p>
+
+                    {/* Timestamp */}
+                    {draft.savedAt && (
+                      <div className="flex items-center gap-1 mt-2">
+                        <Clock className="w-2.5 h-2.5 text-gray-600" />
+                        <span
+                          className="text-[10px] text-gray-600"
+                          title={formatAbsoluteTime(draft.savedAt)}
+                        >
+                          {formatRelativeTime(draft.savedAt)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => handleDelete(draft.key)}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                      title="Delete draft"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleContinue(draft)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-white/[0.08] hover:bg-white/[0.14] text-gray-200 cursor-pointer transition-colors"
+                    >
+                      Continue
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

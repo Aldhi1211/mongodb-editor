@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Editor from "@monaco-editor/react";
 import { EJSON } from "bson";
 import { ObjectId } from "bson";
-import { Button } from "@/components/ui/button";
+import { ArrowLeft, Check, Clock, FileWarning, RotateCcw, X } from "lucide-react";
 
 const DRAFT_KEY_PREFIX = "mongoedit:draft:";
 const EDIT_DRAFT_KEY_PREFIX = "mongoedit:editdraft:";
@@ -36,16 +36,13 @@ export default function EditPageClient() {
     ? `${DRAFT_KEY_PREFIX}${roomId}:${collection}`
     : `${EDIT_DRAFT_KEY_PREFIX}${roomId}:${docId}`;
 
-  // Whether drafting is enabled for this page instance
   const draftEnabled = isNew || Boolean(docId);
 
-  // Keep refs in sync with latest value
   useEffect(() => {
     valueRef.current = value;
     hasChangesRef.current = value !== initialValueRef.current;
   }, [value]);
 
-  // Initialize editor on mount
   useEffect(() => {
     if (isNew) {
       const raw = localStorage.getItem(draftKey);
@@ -57,12 +54,9 @@ export default function EditPageClient() {
           initialValueRef.current = v;
           setDraftSavedAt(draft.savedAt ?? null);
           setDraftRestored(true);
-        } catch {
-          // corrupted draft, ignore and start fresh
-        }
+        } catch {}
       }
     } else {
-      // Edit mode: check localStorage draft first
       if (docId) {
         const draftRaw = localStorage.getItem(draftKey);
         if (draftRaw) {
@@ -79,13 +73,10 @@ export default function EditPageClient() {
             setDraftRestored(true);
             sessionStorage.removeItem("edit_doc");
             return;
-          } catch {
-            // corrupted draft, fall through to sessionStorage
-          }
+          } catch {}
         }
       }
 
-      // Fall back to document passed via sessionStorage from DocumentTable
       const raw = sessionStorage.getItem("edit_doc");
       if (raw) {
         sessionStorage.removeItem("edit_doc");
@@ -104,7 +95,6 @@ export default function EditPageClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Debounced auto-save to localStorage — only when there are actual changes
   useEffect(() => {
     if (!draftEnabled) return;
     if (!hasChangesRef.current) return;
@@ -122,7 +112,6 @@ export default function EditPageClient() {
     return () => clearTimeout(t);
   }, [value, draftKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Save draft immediately on browser close / tab close — only when there are actual changes
   useEffect(() => {
     if (!draftEnabled) return;
     const handler = () => {
@@ -138,8 +127,6 @@ export default function EditPageClient() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [draftKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Save draft on component unmount — only when there are actual unsaved changes.
-  // Skipped if the document was already saved/discarded (savedRef) or nothing changed.
   useEffect(() => {
     if (!draftEnabled) return;
     return () => {
@@ -190,20 +177,14 @@ export default function EditPageClient() {
       if (isNew) {
         res = await fetch(`/api/rooms/${roomId}/collections/${collection}`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: value,
         });
       } else {
         const id = getIdValue(originalDocRef.current?._id);
         res = await fetch(`/api/rooms/${roomId}/collections/${collection}/${id}`, {
           method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: value,
         });
       }
@@ -213,13 +194,11 @@ export default function EditPageClient() {
         throw new Error(err.error || err.message || "Failed to save");
       }
 
-      // Clear draft after successful save and mark so unmount cleanup doesn't re-create it
       if (draftEnabled) {
         localStorage.removeItem(draftKey);
         savedRef.current = true;
       }
 
-      // Notify DocumentTable to refresh its data
       window.dispatchEvent(new CustomEvent("mongoedit:saved"));
       router.back();
     } catch (e: any) {
@@ -274,110 +253,163 @@ export default function EditPageClient() {
     new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
   return (
-    <div className="flex flex-col h-screen bg-white">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-200 flex-shrink-0">
+    <div className="flex flex-col h-screen bg-[#0d1117]">
+      {/* ── Header ── */}
+      <div className="flex items-center gap-0 px-3 h-11 border-b border-white/[0.06] flex-shrink-0 bg-[#161b22]">
+        {/* Back */}
         <button
           onClick={handleBack}
-          className="text-sm text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[13px] text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] transition-colors cursor-pointer mr-1"
         >
-          ← Back
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Back
         </button>
-        <div className="h-4 w-px bg-gray-200" />
-        <span className="text-sm text-gray-500 font-mono">{collection}</span>
-        <span className="text-gray-300">/</span>
-        <span className="text-sm font-medium text-gray-900">
-          {isNew ? "New Document" : "Edit Document"}
+
+        <div className="w-px h-4 bg-white/10 mx-1" />
+
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-1.5 px-2">
+          <span className="text-[12px] text-gray-500 font-mono">{collection}</span>
+          <span className="text-gray-600 text-[12px]">/</span>
+          <span className="text-[12px] font-medium text-gray-300">
+            {isNew ? "New Document" : "Edit Document"}
+          </span>
+        </div>
+
+        {/* Mode badge */}
+        <span
+          className={`ml-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase ${
+            isNew
+              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+              : "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+          }`}
+        >
+          {isNew ? "New" : "Edit"}
         </span>
 
+        {/* Draft status */}
         {draftEnabled && draftSavedAt && (
-          <span className="flex items-center gap-1.5 text-[11px] text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 ml-1 select-none">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
-            {draftRestored
-              ? `Draft restored · ${formatTime(draftSavedAt)}`
-              : `Draft auto-saved · ${formatTime(draftSavedAt)}`}
-          </span>
+          <div className="flex items-center gap-1.5 ml-3 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 select-none">
+            <Clock className="w-2.5 h-2.5 text-amber-400" />
+            <span className="text-[10px] text-amber-400 font-medium">
+              {draftRestored ? "Draft restored" : "Auto-saved"} · {formatTime(draftSavedAt)}
+            </span>
+          </div>
         )}
 
-        <div className="ml-auto flex items-center gap-2">
+        {/* Actions */}
+        <div className="ml-auto flex items-center gap-1.5">
           {draftEnabled && draftSavedAt && (
             <button
               onClick={handleClearDraft}
-              className="text-xs text-gray-400 hover:text-red-500 cursor-pointer px-2 py-1 rounded transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] text-gray-500 hover:text-red-400 hover:bg-red-500/10 cursor-pointer transition-colors"
             >
-              Clear draft
+              <RotateCcw className="w-3 h-3" />
+              Reset draft
             </button>
           )}
-          <Button
-            variant="outline"
+
+          <button
             onClick={handleBack}
-            className="cursor-pointer"
+            className="px-3 py-1.5 rounded-md text-[12px] text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] cursor-pointer transition-colors"
           >
             Cancel
-          </Button>
-          <Button
+          </button>
+
+          <button
             onClick={handleSave}
             disabled={saving}
-            className="cursor-pointer disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-[12px] font-medium bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white cursor-pointer transition-colors"
           >
-            {saving ? "Saving…" : "Save"}
-          </Button>
+            {saving ? (
+              <>
+                <span className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin" />
+                Saving…
+              </>
+            ) : (
+              <>
+                <Check className="w-3.5 h-3.5" />
+                Save
+              </>
+            )}
+          </button>
         </div>
       </div>
 
-      {/* Monaco Editor — takes all remaining height */}
+      {/* ── Monaco Editor ── */}
       <div className="flex-1 min-h-0">
         <Editor
           height="100%"
           defaultLanguage="json"
           value={value}
           onChange={(v) => setValue(v ?? "")}
+          theme="vs-dark"
           options={{
             minimap: { enabled: false },
-            fontSize: 14,
+            fontSize: 13,
+            fontFamily: "'Geist Mono', 'Fira Code', 'Cascadia Code', monospace",
+            fontLigatures: true,
+            lineHeight: 22,
             automaticLayout: true,
             scrollBeyondLastLine: false,
             wordWrap: "on",
+            padding: { top: 16, bottom: 16 },
+            renderLineHighlight: "gutter",
+            cursorBlinking: "smooth",
+            smoothScrolling: true,
+            scrollbar: { verticalScrollbarSize: 6, horizontalScrollbarSize: 6 },
+            bracketPairColorization: { enabled: true },
+            guides: { bracketPairs: true },
           }}
         />
       </div>
 
-      {/* Error bar */}
+      {/* ── Error bar ── */}
       {error && (
-        <div className="px-4 py-2 bg-red-50 border-t border-red-200 text-red-600 text-sm flex-shrink-0">
-          {error}
+        <div className="flex items-start gap-2.5 px-4 py-2.5 bg-red-500/10 border-t border-red-500/20 text-red-400 text-[12px] flex-shrink-0">
+          <FileWarning className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+          <span className="font-mono leading-snug">{error}</span>
         </div>
       )}
 
-      {/* Back confirmation dialog */}
+      {/* ── Back confirmation dialog ── */}
       {showBackConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-xl w-80 overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100">
-              <p className="text-[13px] font-semibold text-gray-800">Ada perubahan yang belum disimpan</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#161b22] border border-white/[0.1] rounded-xl shadow-2xl w-[360px] overflow-hidden">
+            <div className="px-5 pt-5 pb-4">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <FileWarning className="w-4 h-4 text-amber-400" />
+                </div>
+                <div>
+                  <p className="text-[13px] font-semibold text-gray-100 mb-1">Unsaved changes</p>
+                  <p className="text-[12px] text-gray-400 leading-relaxed">
+                    You have unsaved changes. Save them as a draft to continue later, or discard to leave without saving.
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="px-4 py-3">
-              <p className="text-[12px] text-gray-500">Simpan sebagai draft atau buang perubahan?</p>
-            </div>
-            <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between gap-2">
+            <div className="px-5 pb-5 flex items-center justify-between gap-2">
               <button
                 onClick={handleDiscard}
-                className="px-3 py-1.5 rounded-lg text-[12px] text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors cursor-pointer"
               >
-                Buang
+                <X className="w-3.5 h-3.5" />
+                Discard
               </button>
               <div className="flex gap-2">
                 <button
                   onClick={() => setShowBackConfirm(false)}
-                  className="px-3 py-1.5 rounded-lg text-[12px] text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-lg text-[12px] text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] transition-colors cursor-pointer"
                 >
-                  Batal
+                  Stay
                 </button>
                 <button
                   onClick={handleSaveDraft}
-                  className="px-3 py-1.5 rounded-lg text-[12px] font-medium bg-gray-900 text-white hover:bg-gray-700 cursor-pointer transition-colors"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[12px] font-medium bg-amber-500 hover:bg-amber-400 text-black cursor-pointer transition-colors"
                 >
-                  Simpan Draft
+                  <Clock className="w-3.5 h-3.5" />
+                  Save Draft
                 </button>
               </div>
             </div>
