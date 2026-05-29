@@ -17,6 +17,10 @@ import { getEjsonIdString, toShellString } from "@/lib/ejsonShell";
 type Operator = "is" | "regex" | "gt" | "lt";
 type Filter = { key: string; operator: Operator; value: string };
 type QueryMode = "filter" | "query";
+type WriteOp = "deleteOne" | "deleteMany" | "updateOne" | "updateMany";
+type ParsedQuery =
+  | { operation: "find"; filter: any; sort?: any }
+  | { operation: WriteOp; filter: any; update?: any };
 
 export default function DocumentTable({ roomId, collection, userRole = "viewer" }: any) {
   const canWrite = userRole !== "viewer";
@@ -44,6 +48,8 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
   const [rawQuery, setRawQuery] = useState("");
   const [rawSort, setRawSort] = useState("");
   const [queryError, setQueryError] = useState<string | null>(null);
+  const [pendingBulkOp, setPendingBulkOp] = useState<ParsedQuery | null>(null);
+  const [bulkResult, setBulkResult] = useState<string | null>(null);
 
   const formatCellValue = useCallback((value: any) => {
     if (value === null || value === undefined) return <span className="text-gray-300">—</span>;
@@ -135,6 +141,20 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
 
   const defaultQueryTemplate = () => `db.getCollection('${collection}').find({})`;
 
+  // Split "arg1, arg2" at the first top-level comma (handles nested objects/arrays)
+  const splitTwoArgs = (inner: string): [string, string] | null => {
+    let depth = 0;
+    for (let i = 0; i < inner.length; i++) {
+      const c = inner[i];
+      if (c === '{' || c === '[' || c === '(') depth++;
+      else if (c === '}' || c === ']' || c === ')') depth--;
+      else if (c === ',' && depth === 0) {
+        return [inner.slice(0, i).trim(), inner.slice(i + 1).trim()];
+      }
+    }
+    return null;
+  };
+
   // Extract content inside the first matching parentheses of a chained method call
   const extractMethodArg = (raw: string, method: string): string | null => {
     const match = raw.match(new RegExp(`\\.${method}\\s*\\(`));
@@ -150,46 +170,102 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
     return raw.slice(openIdx + 1, i - 1).trim();
   };
 
-  // Parse db.getCollection(...).find({}).sort({}) — returns filter + optional sort
-  const parseQueryString = (raw: string): { filter: any; sort?: any } => {
+  // Parse db.getCollection(...).METHOD(...) — returns typed ParsedQuery
+  const parseQueryString = (raw: string): ParsedQuery => {
     const trimmed = raw.trim();
 
-    // Extract filter from .find(...)
+    // Check for write operations first
+    const writeOps: WriteOp[] = ["deleteOne", "deleteMany", "updateOne", "updateMany"];
+    for (const op of writeOps) {
+      const argInner = extractMethodArg(trimmed, op);
+      if (argInner !== null) {
+        if (op === "updateOne" || op === "updateMany") {
+          const parts = splitTwoArgs(argInner);
+          if (!parts) throw new Error(`${op}() requires two arguments: (filter, update)`);
+          const [filterStr, updateStr] = parts;
+          const filter = filterStr && filterStr !== '{}' ? EJSON.parse(filterStr) : {};
+          const update = EJSON.parse(updateStr);
+          return { operation: op, filter, update };
+        } else {
+          const filter = argInner && argInner !== '{}' ? EJSON.parse(argInner) : {};
+          return { operation: op, filter };
+        }
+      }
+    }
+
+    // Default: find
     const findArg = extractMethodArg(trimmed, 'find');
     let filter: any = {};
     if (findArg !== null) {
       if (findArg && findArg !== '{}') filter = EJSON.parse(findArg);
     } else {
-      // No .find() — treat whole input as bare filter object
       if (trimmed && trimmed !== '{}') filter = EJSON.parse(trimmed);
     }
 
-    // Extract sort from .sort(...)
     let sort: any = undefined;
     const sortArg = extractMethodArg(trimmed, 'sort');
     if (sortArg !== null && sortArg && sortArg !== '{}') {
       sort = EJSON.parse(sortArg);
     }
 
-    return { filter, sort };
+    return { operation: "find", filter, sort };
   };
 
   const handleRunRawQuery = async () => {
     setQueryError(null);
-    let filter: any = {};
-    let sort: any = undefined;
+    setBulkResult(null);
     const trimmed = rawQuery.trim();
+    let parsed: ParsedQuery = { operation: "find", filter: {} };
     if (trimmed) {
       try {
-        ({ filter, sort } = parseQueryString(trimmed));
+        parsed = parseQueryString(trimmed);
       } catch (err: any) {
         setQueryError(err.message);
         return;
       }
     }
+    if (parsed.operation === "find") {
+      setLoading(true);
+      try {
+        await queryData(parsed.filter, 1, (parsed as any).sort);
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      // Show confirmation dialog before executing write op
+      setPendingBulkOp(parsed);
+    }
+  };
+
+  const executeBulkOp = async (op: ParsedQuery) => {
+    if (op.operation === "find") return;
+    setPendingBulkOp(null);
     setLoading(true);
     try {
-      await queryData(filter, 1, sort);
+      const token = localStorage.getItem("token");
+      const body: any = { operation: op.operation, filter: EJSON.serialize(op.filter, { relaxed: false }) };
+      if (op.operation === "updateOne" || op.operation === "updateMany") {
+        body.update = EJSON.serialize((op as any).update, { relaxed: false });
+      }
+      const res = await fetch(
+        `/api/rooms/${roomId}/collections/${collection}/bulk`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify(body),
+        }
+      );
+      const json = await res.json();
+      if (!res.ok) {
+        setQueryError(json.error || "Operation failed");
+        return;
+      }
+      if (op.operation === "deleteOne" || op.operation === "deleteMany") {
+        setBulkResult(`Deleted ${json.deletedCount} document${json.deletedCount !== 1 ? "s" : ""}`);
+      } else {
+        setBulkResult(`Matched ${json.matchedCount}, modified ${json.modifiedCount} document${json.modifiedCount !== 1 ? "s" : ""}`);
+      }
+      await fetchData(1);
     } finally {
       setLoading(false);
     }
@@ -482,6 +558,58 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
 
       <JsonViewerModal open={isJsonViewOpen} onClose={setIsJsonViewOpen} data={data} />
       <JsonViewerModal open={!!viewDoc} onClose={() => setViewDoc(null)} data={viewDoc} />
+
+      {/* Bulk operation confirmation dialog */}
+      {pendingBulkOp && pendingBulkOp.operation !== "find" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <p className="text-[13px] font-semibold text-gray-900">
+                Confirm: <span className="font-mono text-red-600">{pendingBulkOp.operation}</span>
+              </p>
+              <p className="text-[11px] text-gray-400 mt-0.5">This will modify data. Review before executing.</p>
+            </div>
+            <div className="px-5 py-4 flex flex-col gap-3">
+              <div>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Filter</p>
+                <pre className="text-[11px] font-mono bg-gray-50 border border-gray-200 rounded-md px-3 py-2 overflow-auto max-h-32 text-gray-700">
+                  {JSON.stringify(EJSON.serialize(pendingBulkOp.filter, { relaxed: false }), null, 2)}
+                </pre>
+              </div>
+              {(pendingBulkOp.operation === "updateOne" || pendingBulkOp.operation === "updateMany") && (
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Update</p>
+                  <pre className="text-[11px] font-mono bg-gray-50 border border-gray-200 rounded-md px-3 py-2 overflow-auto max-h-32 text-gray-700">
+                    {JSON.stringify(EJSON.serialize((pendingBulkOp as any).update, { relaxed: false }), null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+            <div className="px-5 pb-4 flex justify-end gap-2">
+              <button
+                className="px-4 py-1.5 rounded-md border border-gray-200 text-[12px] text-gray-600 hover:bg-gray-50 cursor-pointer"
+                onClick={() => setPendingBulkOp(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-1.5 rounded-md bg-red-600 text-white text-[12px] font-medium hover:bg-red-700 cursor-pointer"
+                onClick={() => executeBulkOp(pendingBulkOp)}
+              >
+                Execute
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk result banner */}
+      {bulkResult && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-2.5 bg-gray-900 text-white text-[12px] rounded-lg shadow-xl">
+          <span>{bulkResult}</span>
+          <button className="text-gray-400 hover:text-white cursor-pointer text-[11px]" onClick={() => setBulkResult(null)}>✕</button>
+        </div>
+      )}
     </div>
   );
 }

@@ -105,9 +105,26 @@ src/
 - All routes check JWT via `getUser(req)` — returns `null` → 401
 - Room DB access always via `getRoomDb(roomId)` (handles caching + reconnect)
 - PUT/DELETE document: tries `new ObjectId(documentId)` first, falls back to plain string `_id` if not found (handles non-ObjectId `_id`)
-- Audit log written to `workflowbuilder_core.audit_logs` on every insert/update/delete
-- Backup written to `workflowbuilder_core.backups` on every update/delete
-- SSE broadcast via `broadcast({ type, roomId, collection, documentId })` after mutations
+- **REQUIRED: Audit log must be written to `workflowbuilder_core.audit_logs` on EVERY mutation** — this includes single document insert/update/delete AND bulk operations (deleteOne, deleteMany, updateOne, updateMany). No exception.
+- Backup snapshot written to `workflowbuilder_core.backups` on every update/delete (single and bulk)
+- SSE broadcast via `broadcast({ type, roomId, collection, documentId? })` after mutations
+
+### Audit Log Shape
+
+```ts
+{
+  roomId: string,
+  roomName: string,       // snapshot from rooms collection
+  collection: string,
+  action: string,         // "insert" | "update" | "delete" | "deleteOne" | "deleteMany" | "updateOne" | "updateMany" | "create_collection" | "drop_collection" | "rename_collection"
+  before: any,            // document(s) before change; null for inserts
+  after: any,             // document(s) after change; null for deletes
+  filter?: any,           // for bulk ops: the filter used
+  update?: any,           // for bulk update ops: the update pipeline
+  userId: string,
+  timestamp: Date,
+}
+```
 
 ## Document Table Modes
 
@@ -115,6 +132,18 @@ src/
 
 - **Filter** — GUI rows: key / operator (IS, REGEX, GT, LT) / value. Multiple conditions with AND/OR toggle.
 - **Query** — Raw EJSON textarea, like Robo3T. Ctrl+Enter to run. Full MongoDB operators supported (`$or`, `$and`, `$regex`, `$gt`, etc.).
+
+### Raw Query Mode — supported syntax
+
+```js
+db.getCollection('col').find({ status: "active" }).sort({ _id: -1 })
+db.getCollection('col').deleteOne({ _id: { $oid: "..." } })
+db.getCollection('col').deleteMany({ status: "inactive" })
+db.getCollection('col').updateOne({ name: "foo" }, { $set: { age: 30 } })
+db.getCollection('col').updateMany({ role: "guest" }, { $set: { active: false } })
+```
+
+Write operations (`deleteOne`, `deleteMany`, `updateOne`, `updateMany`) show a **confirmation dialog** before executing. After execution, a result banner shows the affected count. All write ops hit `POST /api/rooms/[roomId]/collections/[collectionName]/bulk` and always write an audit log entry.
 
 ## Edit Page (`/edit`)
 
