@@ -35,16 +35,23 @@ export async function GET(
   const skip = (page - 1) * limit;
 
   const rawFilter = searchParams.get("filter");
+  const rawSort = searchParams.get("sort");
 
   let filter: any = {};
   if (rawFilter) {
     try {
       filter = EJSON.parse(decodeURIComponent(rawFilter), { relaxed: false });
     } catch {
-      return NextResponse.json(
-        { error: "Invalid filter JSON" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "Invalid filter JSON" }, { status: 400 });
+    }
+  }
+
+  let sort: any = { _id: -1 };
+  if (rawSort) {
+    try {
+      sort = EJSON.parse(decodeURIComponent(rawSort), { relaxed: false });
+    } catch {
+      return NextResponse.json({ error: "Invalid sort JSON" }, { status: 400 });
     }
   }
 
@@ -52,7 +59,7 @@ export async function GET(
   const collection = db.collection(collectionName);
 
   const [docs, total] = await Promise.all([
-    collection.find(filter).sort({ _id: -1 }).skip(skip).limit(limit).toArray(),
+    collection.find(filter).sort(sort).skip(skip).limit(limit).toArray(),
     collection.countDocuments(filter),
   ]);
 

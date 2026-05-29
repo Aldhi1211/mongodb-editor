@@ -135,36 +135,53 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
 
   const defaultQueryTemplate = () => `db.getCollection('${collection}').find({})`;
 
-  // Extract the filter object from inside .find(...) — supports bare {} fallback
-  const parseRawQuery = (raw: string): any => {
-    const trimmed = raw.trim();
-    const findMatch = trimmed.match(/\.find\s*\(/);
-    if (findMatch?.index !== undefined) {
-      const openIdx = trimmed.indexOf('(', findMatch.index + findMatch[0].length - 1);
-      if (openIdx !== -1) {
-        let depth = 1, i = openIdx + 1;
-        while (i < trimmed.length && depth > 0) {
-          if (trimmed[i] === '(') depth++;
-          else if (trimmed[i] === ')') depth--;
-          i++;
-        }
-        const filterStr = trimmed.slice(openIdx + 1, i - 1).trim();
-        if (!filterStr || filterStr === '{}') return {};
-        return EJSON.parse(filterStr);
-      }
+  // Extract content inside the first matching parentheses of a chained method call
+  const extractMethodArg = (raw: string, method: string): string | null => {
+    const match = raw.match(new RegExp(`\\.${method}\\s*\\(`));
+    if (!match || match.index === undefined) return null;
+    const openIdx = raw.indexOf('(', match.index + match[0].length - 1);
+    if (openIdx === -1) return null;
+    let depth = 1, i = openIdx + 1;
+    while (i < raw.length && depth > 0) {
+      if (raw[i] === '(') depth++;
+      else if (raw[i] === ')') depth--;
+      i++;
     }
-    // Fallback: treat the whole input as a bare filter object
-    if (!trimmed || trimmed === '{}') return {};
-    return EJSON.parse(trimmed);
+    return raw.slice(openIdx + 1, i - 1).trim();
+  };
+
+  // Parse db.getCollection(...).find({}).sort({}) — returns filter + optional sort
+  const parseQueryString = (raw: string): { filter: any; sort?: any } => {
+    const trimmed = raw.trim();
+
+    // Extract filter from .find(...)
+    const findArg = extractMethodArg(trimmed, 'find');
+    let filter: any = {};
+    if (findArg !== null) {
+      if (findArg && findArg !== '{}') filter = EJSON.parse(findArg);
+    } else {
+      // No .find() — treat whole input as bare filter object
+      if (trimmed && trimmed !== '{}') filter = EJSON.parse(trimmed);
+    }
+
+    // Extract sort from .sort(...)
+    let sort: any = undefined;
+    const sortArg = extractMethodArg(trimmed, 'sort');
+    if (sortArg !== null && sortArg && sortArg !== '{}') {
+      sort = EJSON.parse(sortArg);
+    }
+
+    return { filter, sort };
   };
 
   const handleRunRawQuery = async () => {
     setQueryError(null);
     let filter: any = {};
+    let sort: any = undefined;
     const trimmed = rawQuery.trim();
     if (trimmed) {
       try {
-        filter = parseRawQuery(trimmed);
+        ({ filter, sort } = parseQueryString(trimmed));
       } catch (err: any) {
         setQueryError(err.message);
         return;
@@ -172,7 +189,7 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
     }
     setLoading(true);
     try {
-      await queryData(filter, 1);
+      await queryData(filter, 1, sort);
     } finally {
       setLoading(false);
     }

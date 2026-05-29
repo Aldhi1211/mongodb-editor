@@ -28,16 +28,17 @@ export function useDocuments(roomId: string, collection: string) {
     }
   };
 
-  const queryData = async (filter: any, p = 1) => {
+  const queryData = async (filter: any, p = 1, sort?: any) => {
     setIsFetching(true);
     try {
       const encodedFilter = encodeURIComponent(
         EJSON.stringify(filter, { relaxed: false }),
       );
-      const res = await fetch(
-        `/api/rooms/${roomId}/collections/${collection}?filter=${encodedFilter}&page=${p}&limit=${limit}`,
-        { headers: { Authorization: `Bearer ${token()}` } },
-      );
+      let url = `/api/rooms/${roomId}/collections/${collection}?filter=${encodedFilter}&page=${p}&limit=${limit}`;
+      if (sort) {
+        url += `&sort=${encodeURIComponent(EJSON.stringify(sort, { relaxed: false }))}`;
+      }
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token()}` } });
       const json = await res.json();
       setData(json.data || []);
       setTotal(json.total || 0);
