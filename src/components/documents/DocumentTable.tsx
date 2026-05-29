@@ -16,6 +16,7 @@ import { getEjsonIdString, toShellString } from "@/lib/ejsonShell";
 
 type Operator = "is" | "regex" | "gt" | "lt";
 type Filter = { key: string; operator: Operator; value: string };
+type QueryMode = "filter" | "query";
 
 export default function DocumentTable({ roomId, collection, userRole = "viewer" }: any) {
   const canWrite = userRole !== "viewer";
@@ -39,6 +40,10 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState<Filter[]>([{ key: "", operator: "is", value: "" }]);
   const [filterMode, setFilterMode] = useState<"and" | "or">("and");
+  const [queryMode, setQueryMode] = useState<QueryMode>("filter");
+  const [rawQuery, setRawQuery] = useState("");
+  const [rawSort, setRawSort] = useState("");
+  const [queryError, setQueryError] = useState<string | null>(null);
 
   const formatCellValue = useCallback((value: any) => {
     if (value === null || value === undefined) return <span className="text-gray-300">—</span>;
@@ -128,6 +133,34 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
     return { $or: conditions };
   };
 
+  const handleRunRawQuery = async () => {
+    setQueryError(null);
+    let filter: any = {};
+    const trimmedFilter = rawQuery.trim();
+    if (trimmedFilter && trimmedFilter !== "{}") {
+      try {
+        filter = EJSON.parse(trimmedFilter);
+      } catch (err: any) {
+        setQueryError(`Filter: ${err.message}`);
+        return;
+      }
+    }
+    setLoading(true);
+    try {
+      await queryData(filter, 1);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetQuery = async () => {
+    setRawQuery("");
+    setRawSort("");
+    setQueryError(null);
+    await fetchData(1);
+    setPage(1);
+  };
+
   const inputCls = "px-2.5 py-1.5 rounded-md border border-gray-200 bg-gray-50 text-[12px] text-gray-600 font-mono outline-none focus:border-gray-400";
   const selectCls = "px-2.5 py-1.5 rounded-md border border-gray-200 bg-gray-50 text-[12px] text-gray-800 outline-none focus:border-gray-400";
 
@@ -137,83 +170,164 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
   return (
     <div className="flex-1 min-w-0 flex flex-col overflow-hidden bg-white">
       {/* Content Header */}
-      <div className="px-4 pt-3 pb-2 border-b border-gray-200 flex-shrink-0">
-        <div className="text-[15px] font-medium text-gray-900 mb-2.5">{collection}</div>
-
-        {/* Filter rows */}
-        <div className="flex flex-col gap-1.5">
-          {filters.map((filter, index) => {
-            const isLast = index === filters.length - 1;
-            return (
-              <div key={index} className="flex flex-col gap-1.5">
-              {index > 0 && (
-                <div className="flex items-center gap-1.5 pl-0.5">
-                  <div className="h-px w-3 bg-gray-200" />
-                  <button
-                    onClick={() => setFilterMode(m => m === "and" ? "or" : "and")}
-                    className="text-[10px] font-bold px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-500 hover:border-gray-400 hover:text-gray-700 cursor-pointer tracking-wider transition-colors"
-                  >
-                    {filterMode.toUpperCase()}
-                  </button>
-                  <div className="h-px flex-1 bg-gray-200" />
-                </div>
-              )}
-              <div className="flex items-center gap-2">
-                <input
-                  className={`${inputCls} flex-[2]`}
-                  placeholder="key"
-                  value={filter.key}
-                  onChange={(e) => updateFilter(index, "key", e.target.value)}
-                />
-                <select
-                  className={selectCls}
-                  value={filter.operator}
-                  onChange={(e) => updateFilter(index, "operator", e.target.value as Operator)}
-                >
-                  <option value="is">IS</option>
-                  <option value="regex">REGEX</option>
-                  <option value="gt">GT</option>
-                  <option value="lt">LT</option>
-                </select>
-                <input
-                  className={`${inputCls} flex-[2]`}
-                  placeholder="value"
-                  value={filter.value}
-                  onChange={(e) => updateFilter(index, "value", e.target.value)}
-                />
-                {filters.length > 1 && (
-                  <button
-                    className="px-2 py-1.5 rounded-md border border-red-200 text-[12px] text-red-500 hover:bg-red-50 cursor-pointer"
-                    onClick={() => setFilters(filters.filter((_, i) => i !== index))}
-                  >
-                    ✕
-                  </button>
-                )}
-                {isLast && (
-                  <>
-                    <button
-                      className="px-3 py-1.5 rounded-md border border-gray-200 text-[12px] text-gray-600 hover:bg-gray-50 cursor-pointer whitespace-nowrap"
-                      onClick={() => setFilters([...filters, { key: "", operator: "is", value: "" }])}
-                    >
-                      + Add
-                    </button>
-                    <button
-                      disabled={loading}
-                      className="px-4 py-1.5 rounded-md bg-[#111] text-white text-[12px] font-medium cursor-pointer hover:bg-[#333] disabled:opacity-50 whitespace-nowrap"
-                      onClick={async () => {
-                        setLoading(true);
-                        try { await queryData(buildQuery(), 1); } finally { setLoading(false); }
-                      }}
-                    >
-                      {loading ? "Running…" : "Run"}
-                    </button>
-                  </>
-                )}
-              </div>
-              </div>
-            );
-          })}
+      <div className="px-4 pt-3 pb-2.5 border-b border-gray-200 flex-shrink-0">
+        {/* Collection name + mode toggle */}
+        <div className="flex items-center justify-between mb-2.5">
+          <div className="text-[15px] font-medium text-gray-900">{collection}</div>
+          <div className="flex items-center gap-0.5 p-0.5 rounded-lg border border-gray-200 bg-gray-50">
+            <button
+              onClick={() => setQueryMode("filter")}
+              className={`px-3 py-0.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                queryMode === "filter"
+                  ? "bg-white text-gray-800 shadow-sm border border-gray-200"
+                  : "text-gray-400 hover:text-gray-600"
+              }`}
+            >
+              Filter
+            </button>
+            <button
+              onClick={() => setQueryMode("query")}
+              className={`px-3 py-0.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                queryMode === "query"
+                  ? "bg-white text-gray-800 shadow-sm border border-gray-200"
+                  : "text-gray-400 hover:text-gray-600"
+              }`}
+            >
+              Query
+            </button>
+          </div>
         </div>
+
+        {/* ── Filter mode ── */}
+        {queryMode === "filter" && (
+          <div className="flex flex-col gap-1.5">
+            {filters.map((filter, index) => {
+              const isLast = index === filters.length - 1;
+              return (
+                <div key={index} className="flex flex-col gap-1.5">
+                  {index > 0 && (
+                    <div className="flex items-center gap-1.5 pl-0.5">
+                      <div className="h-px w-3 bg-gray-200" />
+                      <button
+                        onClick={() => setFilterMode(m => m === "and" ? "or" : "and")}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-500 hover:border-gray-400 hover:text-gray-700 cursor-pointer tracking-wider transition-colors"
+                      >
+                        {filterMode.toUpperCase()}
+                      </button>
+                      <div className="h-px flex-1 bg-gray-200" />
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <input
+                      className={`${inputCls} flex-[2]`}
+                      placeholder="key"
+                      value={filter.key}
+                      onChange={(e) => updateFilter(index, "key", e.target.value)}
+                    />
+                    <select
+                      className={selectCls}
+                      value={filter.operator}
+                      onChange={(e) => updateFilter(index, "operator", e.target.value as Operator)}
+                    >
+                      <option value="is">IS</option>
+                      <option value="regex">REGEX</option>
+                      <option value="gt">GT</option>
+                      <option value="lt">LT</option>
+                    </select>
+                    <input
+                      className={`${inputCls} flex-[2]`}
+                      placeholder="value"
+                      value={filter.value}
+                      onChange={(e) => updateFilter(index, "value", e.target.value)}
+                    />
+                    {filters.length > 1 && (
+                      <button
+                        className="px-2 py-1.5 rounded-md border border-red-200 text-[12px] text-red-500 hover:bg-red-50 cursor-pointer"
+                        onClick={() => setFilters(filters.filter((_, i) => i !== index))}
+                      >
+                        ✕
+                      </button>
+                    )}
+                    {isLast && (
+                      <>
+                        <button
+                          className="px-3 py-1.5 rounded-md border border-gray-200 text-[12px] text-gray-600 hover:bg-gray-50 cursor-pointer whitespace-nowrap"
+                          onClick={() => setFilters([...filters, { key: "", operator: "is", value: "" }])}
+                        >
+                          + Add
+                        </button>
+                        <button
+                          disabled={loading}
+                          className="px-4 py-1.5 rounded-md bg-[#111] text-white text-[12px] font-medium cursor-pointer hover:bg-[#333] disabled:opacity-50 whitespace-nowrap"
+                          onClick={async () => {
+                            setLoading(true);
+                            try { await queryData(buildQuery(), 1); } finally { setLoading(false); }
+                          }}
+                        >
+                          {loading ? "Running…" : "Run"}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── Query mode ── */}
+        {queryMode === "query" && (
+          <div className="flex flex-col gap-2">
+            {/* Filter */}
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Filter</span>
+                <span className="text-[11px] text-gray-300 font-mono">
+                  db.<span className="text-gray-500">{collection}</span>.find(…)
+                </span>
+              </div>
+              <textarea
+                rows={3}
+                spellCheck={false}
+                className="w-full px-3 py-2 rounded-md border border-gray-200 bg-gray-50 text-[12px] text-gray-700 font-mono outline-none focus:border-gray-400 resize-y leading-relaxed"
+                placeholder={'{ "status": "active", "age": { "$gt": 18 } }'}
+                value={rawQuery}
+                onChange={(e) => { setRawQuery(e.target.value); setQueryError(null); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    handleRunRawQuery();
+                  }
+                }}
+              />
+            </div>
+
+            {/* Error */}
+            {queryError && (
+              <p className="text-[11px] text-red-500 font-mono bg-red-50 border border-red-100 rounded px-2.5 py-1.5">
+                {queryError}
+              </p>
+            )}
+
+            {/* Actions */}
+            <div className="flex items-center gap-2">
+              <button
+                disabled={loading}
+                onClick={handleRunRawQuery}
+                className="px-4 py-1.5 rounded-md bg-[#111] text-white text-[12px] font-medium cursor-pointer hover:bg-[#333] disabled:opacity-50 whitespace-nowrap"
+              >
+                {loading ? "Running…" : "Run"}
+              </button>
+              <button
+                onClick={handleResetQuery}
+                className="px-3 py-1.5 rounded-md border border-gray-200 text-[12px] text-gray-500 hover:bg-gray-50 cursor-pointer"
+              >
+                Reset
+              </button>
+              <span className="text-[10px] text-gray-400 ml-1">Ctrl+Enter to run · EJSON supported</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* View Tabs + doc count */}
