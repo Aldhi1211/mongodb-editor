@@ -133,15 +133,40 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
     return { $or: conditions };
   };
 
+  const defaultQueryTemplate = () => `db.getCollection('${collection}').find({})`;
+
+  // Extract the filter object from inside .find(...) — supports bare {} fallback
+  const parseRawQuery = (raw: string): any => {
+    const trimmed = raw.trim();
+    const findMatch = trimmed.match(/\.find\s*\(/);
+    if (findMatch?.index !== undefined) {
+      const openIdx = trimmed.indexOf('(', findMatch.index + findMatch[0].length - 1);
+      if (openIdx !== -1) {
+        let depth = 1, i = openIdx + 1;
+        while (i < trimmed.length && depth > 0) {
+          if (trimmed[i] === '(') depth++;
+          else if (trimmed[i] === ')') depth--;
+          i++;
+        }
+        const filterStr = trimmed.slice(openIdx + 1, i - 1).trim();
+        if (!filterStr || filterStr === '{}') return {};
+        return EJSON.parse(filterStr);
+      }
+    }
+    // Fallback: treat the whole input as a bare filter object
+    if (!trimmed || trimmed === '{}') return {};
+    return EJSON.parse(trimmed);
+  };
+
   const handleRunRawQuery = async () => {
     setQueryError(null);
     let filter: any = {};
-    const trimmedFilter = rawQuery.trim();
-    if (trimmedFilter && trimmedFilter !== "{}") {
+    const trimmed = rawQuery.trim();
+    if (trimmed) {
       try {
-        filter = EJSON.parse(trimmedFilter);
+        filter = parseRawQuery(trimmed);
       } catch (err: any) {
-        setQueryError(`Filter: ${err.message}`);
+        setQueryError(err.message);
         return;
       }
     }
@@ -154,7 +179,7 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
   };
 
   const handleResetQuery = async () => {
-    setRawQuery("");
+    setRawQuery(defaultQueryTemplate());
     setRawSort("");
     setQueryError(null);
     await fetchData(1);
@@ -186,7 +211,10 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
               Filter
             </button>
             <button
-              onClick={() => setQueryMode("query")}
+              onClick={() => {
+                setQueryMode("query");
+                if (!rawQuery) setRawQuery(defaultQueryTemplate());
+              }}
               className={`px-3 py-0.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
                 queryMode === "query"
                   ? "bg-white text-gray-800 shadow-sm border border-gray-200"
@@ -278,29 +306,19 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
         {/* ── Query mode ── */}
         {queryMode === "query" && (
           <div className="flex flex-col gap-2">
-            {/* Filter */}
-            <div>
-              <div className="flex items-center gap-1.5 mb-1">
-                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Filter</span>
-                <span className="text-[11px] text-gray-300 font-mono">
-                  db.<span className="text-gray-500">{collection}</span>.find(…)
-                </span>
-              </div>
-              <textarea
-                rows={3}
-                spellCheck={false}
-                className="w-full px-3 py-2 rounded-md border border-gray-200 bg-gray-50 text-[12px] text-gray-700 font-mono outline-none focus:border-gray-400 resize-y leading-relaxed"
-                placeholder={'{ "status": "active", "age": { "$gt": 18 } }'}
-                value={rawQuery}
-                onChange={(e) => { setRawQuery(e.target.value); setQueryError(null); }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                    e.preventDefault();
-                    handleRunRawQuery();
-                  }
-                }}
-              />
-            </div>
+            <textarea
+              rows={3}
+              spellCheck={false}
+              className="w-full px-3 py-2.5 rounded-md border border-gray-200 bg-gray-50 text-[12px] text-gray-700 font-mono outline-none focus:border-gray-400 resize-y leading-[1.6]"
+              value={rawQuery}
+              onChange={(e) => { setRawQuery(e.target.value); setQueryError(null); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                  e.preventDefault();
+                  handleRunRawQuery();
+                }
+              }}
+            />
 
             {/* Error */}
             {queryError && (
