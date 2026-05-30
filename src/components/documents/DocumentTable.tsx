@@ -387,7 +387,7 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
                         >
                           {loading ? "Running…" : "Run"}
                         </button>
-                        {canWrite && (
+                        {(userRole === "owner" || userRole === "admin") && (
                           <button
                             disabled={loading}
                             className="px-3 py-1.5 rounded-md border border-red-200 text-[12px] text-red-600 hover:bg-red-50 disabled:opacity-50 cursor-pointer whitespace-nowrap"
