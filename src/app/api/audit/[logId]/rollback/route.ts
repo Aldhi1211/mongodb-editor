@@ -32,7 +32,6 @@ export async function POST(
     return NextResponse.json({ error: "Cannot rollback: no before state available" }, { status: 400 });
   }
 
-  // Check permission — must be member with write access
   const room = await coreDb.collection("rooms").findOne({ _id: new ObjectId(log.roomId) });
   if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
 
@@ -44,7 +43,38 @@ export async function POST(
   const db = await getRoomDb(log.roomId);
   const collection = db.collection(log.collection);
 
-  // Deserialize the before-state document
+  // ── Bulk rollback: before is an array (deleteMany / deleteOne bulk / drop_collection) ──
+  if (Array.isArray(log.before)) {
+    const docs = (log.before as any[]).map((d) =>
+      EJSON.deserialize(d, { relaxed: false })
+    ) as any[];
+
+    if (docs.length > 0) {
+      // Remove any existing docs with the same _ids to avoid duplicate key errors
+      const ids = docs.map((d) => d._id).filter(Boolean);
+      if (ids.length > 0) {
+        await collection.deleteMany({ _id: { $in: ids } });
+      }
+      await collection.insertMany(docs);
+    }
+
+    await coreDb.collection("audit_logs").insertOne({
+      roomId: log.roomId,
+      roomName: log.roomName,
+      collection: log.collection,
+      action: "rollback",
+      before: log.after,
+      after: log.before,
+      restoredCount: docs.length,
+      userId: user.userId,
+      timestamp: new Date(),
+      rollbackOf: logId,
+    });
+
+    return NextResponse.json({ success: true, restored: docs.length });
+  }
+
+  // ── Single-document rollback (update / delete single / insert) ──
   const beforeDoc = EJSON.deserialize(log.before, { relaxed: false }) as any;
   const { _id: rawId, ...rest } = beforeDoc;
 
@@ -55,14 +85,12 @@ export async function POST(
     docId = log.documentId;
   }
 
-  // upsert=true handles both 'update' (doc exists) and 'delete' (doc was removed)
   await collection.replaceOne(
     { _id: docId },
     { _id: docId, ...rest },
     { upsert: true },
   );
 
-  // Record the rollback as its own audit entry
   await coreDb.collection("audit_logs").insertOne({
     roomId: log.roomId,
     roomName: log.roomName,
