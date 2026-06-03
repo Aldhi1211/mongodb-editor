@@ -88,7 +88,10 @@ export default function RoomList({ onSelect, activeRoomId, onReady, onRoleResolv
 
       {/* List */}
       <div className="flex-1 overflow-y-auto py-1">
-        {rooms.filter(r => r.name.toLowerCase().includes(search.toLowerCase())).map((room) => {
+        {rooms
+          .filter(r => r.name.toLowerCase().includes(search.toLowerCase()))
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((room) => {
           const isActive = room._id === activeRoomId;
           return (
             <div
