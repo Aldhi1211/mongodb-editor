@@ -216,8 +216,11 @@ export async function DELETE(
   const db = await getRoomDb(roomId);
   const collection = db.collection(collectionName);
 
-  // Snapshot sebelum di-drop (limit biar gak gila memory)
-  const before = await collection.find({}).limit(100).toArray();
+  // Snapshot SEMUA dokumen sebelum di-drop
+  const allDocs: any[] = [];
+  for await (const doc of collection.find({})) {
+    allDocs.push(EJSON.serialize(doc, { relaxed: false }));
+  }
 
   // Drop collection
   await collection.drop();
@@ -225,30 +228,29 @@ export async function DELETE(
   const coreClient = await clientPromise;
   const coreDb = coreClient.db("workflowbuilder_core");
 
-  // Ambil nama room
   const room = await coreDb
     .collection("rooms")
     .findOne({ _id: new ObjectId(roomId) }, { projection: { name: 1 } });
 
-  // Audit log
+  // Audit log — simpan semua dokumen di before
   await coreDb.collection("audit_logs").insertOne({
     roomId,
     roomName: room?.name || "Unknown Room",
     collection: collectionName,
     action: "drop_collection",
-    beforeCount: before.length,
-    beforeSample: before, // snapshot terbatas
+    before: allDocs,
+    beforeCount: allDocs.length,
     after: null,
     userId: user.userId,
     timestamp: new Date(),
   });
 
-  // Backup snapshot
+  // Backup snapshot — semua dokumen
   await coreDb.collection("backups").insertOne({
     roomId,
     collection: collectionName,
     type: "collection_drop",
-    data: before,
+    data: allDocs,
     permanent: false,
     createdAt: new Date(),
   });
