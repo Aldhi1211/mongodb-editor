@@ -214,45 +214,56 @@ export async function DELETE(
   }
 
   const db = await getRoomDb(roomId);
-  const collection = db.collection(collectionName);
+  const col = db.collection(collectionName);
 
-  // Snapshot SEMUA dokumen sebelum di-drop
-  const allDocs: any[] = [];
-  for await (const doc of collection.find({})) {
-    allDocs.push(EJSON.serialize(doc, { relaxed: false }));
-  }
-
-  // Drop collection
-  await collection.drop();
-
+  // Ambil coreDb dulu sebelum drop, agar bisa batch-write backup
   const coreClient = await clientPromise;
   const coreDb = coreClient.db("workflowbuilder_core");
-
   const room = await coreDb
     .collection("rooms")
     .findOne({ _id: new ObjectId(roomId) }, { projection: { name: 1 } });
 
-  // Audit log — simpan semua dokumen di before
+  // Stream semua dokumen ke backups dalam batch 100 (hindari 16MB BSON limit)
+  const batchId = new ObjectId().toString();
+  let totalCount = 0;
+  let batch: any[] = [];
+  let batchIndex = 0;
+
+  for await (const doc of col.find({})) {
+    batch.push(EJSON.serialize(doc, { relaxed: false }));
+    totalCount++;
+    if (batch.length >= 100) {
+      await coreDb.collection("backups").insertOne({
+        roomId, collection: collectionName,
+        type: "collection_drop", batchId, batchIndex: batchIndex++,
+        data: batch, permanent: false, createdAt: new Date(),
+      });
+      batch = [];
+    }
+  }
+  if (batch.length > 0) {
+    await coreDb.collection("backups").insertOne({
+      roomId, collection: collectionName,
+      type: "collection_drop", batchId, batchIndex: batchIndex++,
+      data: batch, permanent: false, createdAt: new Date(),
+    });
+  }
+
+  // Drop collection
+  await col.drop();
+
+  // Audit log ringkas — data lengkap ada di backups via backupBatchId
   await coreDb.collection("audit_logs").insertOne({
     roomId,
     roomName: room?.name || "Unknown Room",
     collection: collectionName,
     action: "drop_collection",
-    before: allDocs,
-    beforeCount: allDocs.length,
+    before: null,
+    backupBatchId: batchId,
+    beforeCount: totalCount,
     after: null,
     userId: user.userId,
     timestamp: new Date(),
-  });
-
-  // Backup snapshot — semua dokumen
-  await coreDb.collection("backups").insertOne({
-    roomId,
-    collection: collectionName,
-    type: "collection_drop",
-    data: allDocs,
-    permanent: false,
-    createdAt: new Date(),
   });
 
   broadcast({

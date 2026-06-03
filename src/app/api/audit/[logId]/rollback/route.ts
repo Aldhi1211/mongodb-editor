@@ -43,7 +43,43 @@ export async function POST(
   const db = await getRoomDb(log.roomId);
   const collection = db.collection(log.collection);
 
-  // ── Bulk rollback: before is an array (deleteMany / deleteOne bulk / drop_collection) ──
+  // ── drop_collection via backupBatchId (new path: before=null, data in backups) ──
+  if (!log.before && log.backupBatchId) {
+    const batches = await coreDb.collection("backups")
+      .find({ batchId: log.backupBatchId })
+      .sort({ batchIndex: 1 })
+      .toArray();
+
+    const allDocs = (batches as any[]).flatMap((b) => b.data);
+    const docs = allDocs.map((d: any) => EJSON.deserialize(d, { relaxed: false })) as any[];
+
+    if (docs.length > 0) {
+      const ids = docs.map((d) => d._id).filter(Boolean);
+      if (ids.length > 0) await collection.deleteMany({ _id: { $in: ids } });
+      // Insert in batches to stay within BSON limits
+      for (let i = 0; i < docs.length; i += 100) {
+        await collection.insertMany(docs.slice(i, i + 100));
+      }
+    }
+
+    await coreDb.collection("audit_logs").insertOne({
+      roomId: log.roomId,
+      roomName: log.roomName,
+      collection: log.collection,
+      action: "rollback",
+      before: null,
+      after: null,
+      backupBatchId: log.backupBatchId,
+      restoredCount: docs.length,
+      userId: user.userId,
+      timestamp: new Date(),
+      rollbackOf: logId,
+    });
+
+    return NextResponse.json({ success: true, restored: docs.length });
+  }
+
+  // ── Bulk rollback: before is an array (deleteMany / deleteOne bulk / drop_collection legacy) ──
   if (Array.isArray(log.before)) {
     const docs = (log.before as any[]).map((d) =>
       EJSON.deserialize(d, { relaxed: false })
