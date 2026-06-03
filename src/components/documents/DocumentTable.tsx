@@ -13,6 +13,7 @@ import { useDocuments } from "./useDocuments";
 import DocumentContextMenu from "./DocumentContextMenu";
 import JsonViewerModal from "./JsonViewerModal";
 import { getEjsonIdString, toShellString } from "@/lib/ejsonShell";
+import { Loader2 } from "lucide-react";
 
 type Operator = "is" | "regex" | "gt" | "lt";
 type Filter = { key: string; operator: Operator; value: string };
@@ -50,6 +51,8 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
   const [queryError, setQueryError] = useState<string | null>(null);
   const [pendingBulkOp, setPendingBulkOp] = useState<ParsedQuery | null>(null);
   const [bulkResult, setBulkResult] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<any>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const formatCellValue = useCallback((value: any) => {
     if (value === null || value === undefined) return <span className="text-gray-300">—</span>;
@@ -565,9 +568,9 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
       <DocumentContextMenu
         pos={menuPos}
         userRole={userRole}
-        onDelete={async () => {
-          await deleteDoc(getEjsonIdString(contextRow?._id));
-          await fetchData();
+        onDelete={() => {
+          setPendingDelete(contextRow);
+          setMenuPos(null);
         }}
         onView={() => setViewDoc(contextRow)}
         onUpdate={() => openEdit(contextRow)}
@@ -616,6 +619,53 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
                 onClick={() => executeBulkOp(pendingBulkOp)}
               >
                 Execute
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Single document delete confirmation dialog */}
+      {pendingDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <p className="text-[13px] font-semibold text-gray-900">
+                Delete <span className="font-mono text-red-600">document</span>?
+              </p>
+              <p className="text-[11px] text-gray-400 mt-0.5">This action cannot be undone.</p>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">_id</p>
+              <pre className="text-[11px] font-mono bg-gray-50 border border-gray-200 rounded-md px-3 py-2 overflow-auto max-h-32 text-gray-700">
+                {getEjsonIdString(pendingDelete?._id)}
+              </pre>
+            </div>
+            <div className="px-5 pb-4 flex justify-end gap-2">
+              <button
+                className="px-4 py-1.5 rounded-md border border-gray-200 text-[12px] text-gray-600 hover:bg-gray-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                disabled={deleting}
+                onClick={() => setPendingDelete(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-1.5 rounded-md bg-red-600 text-white text-[12px] font-medium hover:bg-red-700 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                disabled={deleting}
+                onClick={async () => {
+                  setDeleting(true);
+                  try {
+                    await deleteDoc(getEjsonIdString(pendingDelete?._id));
+                    await fetchData();
+                    setPendingDelete(null);
+                    setContextRow(null);
+                  } finally {
+                    setDeleting(false);
+                  }
+                }}
+              >
+                {deleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {deleting ? "Deleting..." : "Delete"}
               </button>
             </div>
           </div>
