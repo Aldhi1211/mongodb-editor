@@ -214,57 +214,47 @@ export async function DELETE(
   }
 
   const db = await getRoomDb(roomId);
-  const col = db.collection(collectionName);
+  const collection = db.collection(collectionName);
 
-  // Ambil coreDb dulu sebelum drop, agar bisa batch-write backup
+  // Kumpulkan semua dokumen sebelum di-drop (EJSON-serialized, konsisten dengan deleteMany)
+  const allDocs: any[] = [];
+  for await (const doc of collection.find({})) {
+    allDocs.push(EJSON.serialize(doc, { relaxed: false }));
+  }
+
+  // Drop collection
+  await collection.drop();
+
   const coreClient = await clientPromise;
   const coreDb = coreClient.db("workflowbuilder_core");
   const room = await coreDb
     .collection("rooms")
     .findOne({ _id: new ObjectId(roomId) }, { projection: { name: 1 } });
 
-  // Stream semua dokumen ke backups dalam batch 100 (hindari 16MB BSON limit)
-  const batchId = new ObjectId().toString();
-  let totalCount = 0;
-  let batch: any[] = [];
-  let batchIndex = 0;
-
-  for await (const doc of col.find({})) {
-    batch.push(EJSON.serialize(doc, { relaxed: false }));
-    totalCount++;
-    if (batch.length >= 100) {
-      await coreDb.collection("backups").insertOne({
-        roomId, collection: collectionName,
-        type: "collection_drop", batchId, batchIndex: batchIndex++,
-        data: batch, permanent: false, createdAt: new Date(),
-      });
-      batch = [];
-    }
-  }
-  if (batch.length > 0) {
-    await coreDb.collection("backups").insertOne({
-      roomId, collection: collectionName,
-      type: "collection_drop", batchId, batchIndex: batchIndex++,
-      data: batch, permanent: false, createdAt: new Date(),
-    });
-  }
-
-  // Drop collection
-  await col.drop();
-
-  // Audit log ringkas — data lengkap ada di backups via backupBatchId
+  // Audit log — simpan semua dokumen di before (sama seperti deleteMany)
   await coreDb.collection("audit_logs").insertOne({
     roomId,
     roomName: room?.name || "Unknown Room",
     collection: collectionName,
     action: "drop_collection",
-    before: null,
-    backupBatchId: batchId,
-    beforeCount: totalCount,
+    before: allDocs,
+    beforeCount: allDocs.length,
     after: null,
     userId: user.userId,
     timestamp: new Date(),
   });
+
+  // Backup snapshot dalam batch 100 (untuk recovery)
+  const BATCH = 100;
+  for (let i = 0; i < allDocs.length; i += BATCH) {
+    await coreDb.collection("backups").insertOne({
+      roomId, collection: collectionName,
+      type: "collection_drop",
+      batchIndex: Math.floor(i / BATCH),
+      data: allDocs.slice(i, i + BATCH),
+      permanent: false, createdAt: new Date(),
+    });
+  }
 
   broadcast({
     type: "drop_collection",

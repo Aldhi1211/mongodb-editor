@@ -28,10 +28,6 @@ export async function POST(
   const log = await coreDb.collection("audit_logs").findOne({ _id: new ObjectId(logId) });
   if (!log) return NextResponse.json({ error: "Audit log not found" }, { status: 404 });
 
-  if (!log.before) {
-    return NextResponse.json({ error: "Cannot rollback: no before state available" }, { status: 400 });
-  }
-
   const room = await coreDb.collection("rooms").findOne({ _id: new ObjectId(log.roomId) });
   if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
 
@@ -43,7 +39,7 @@ export async function POST(
   const db = await getRoomDb(log.roomId);
   const collection = db.collection(log.collection);
 
-  // ── drop_collection via backupBatchId (new path: before=null, data in backups) ──
+  // ── drop_collection via backupBatchId (before=null, data di backups) ──
   if (!log.before && log.backupBatchId) {
     const batches = await coreDb.collection("backups")
       .find({ batchId: log.backupBatchId })
@@ -108,6 +104,11 @@ export async function POST(
     });
 
     return NextResponse.json({ success: true, restored: docs.length });
+  }
+
+  // Tidak ada before state yang bisa di-rollback
+  if (!log.before) {
+    return NextResponse.json({ error: "Cannot rollback: no before state available" }, { status: 400 });
   }
 
   // ── Single-document rollback (update / delete single / insert) ──
