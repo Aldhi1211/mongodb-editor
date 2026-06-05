@@ -38,6 +38,12 @@ interface NavBarMenuProps {
     onSelectRoom?: (id: string) => void
     /** Opens the cluster management modal. */
     onManageClusters?: () => void
+    /** When provided, the search box becomes functional (filters the collection list). */
+    search?: string
+    onSearchChange?: (value: string) => void
+    searchPlaceholder?: string
+    /** When provided, renders a "New collection" button next to the help icon. */
+    onNewCollection?: () => void
 }
 
 /** Montra brand mark — same glyph used on the auth pages. */
@@ -82,6 +88,10 @@ export function NavBarMenu({
     activeRoomId,
     onSelectRoom,
     onManageClusters,
+    search,
+    onSearchChange,
+    searchPlaceholder = "Search",
+    onNewCollection,
 }: NavBarMenuProps) {
     const router = useRouter()
     const [userEmail, setUserEmail] = useState("")
@@ -266,17 +276,41 @@ export function NavBarMenu({
                 {/* Spacer so the right cluster stays right when center nav is hidden */}
                 <div className="flex-1 lg:hidden" />
 
-                {/* RIGHT — decorative actions + avatar */}
+                {/* RIGHT — search + actions + avatar */}
                 <div className="flex items-center gap-1.5 sm:gap-2">
-                    {/* Decorative search (matches mockup, non-functional) */}
-                    <button className="hidden md:inline-flex items-center gap-2 h-[34px] pl-2.5 pr-2 w-44 lg:w-52 rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-500 text-[13px] hover:bg-neutral-100 cursor-default" tabIndex={-1} aria-hidden="true">
-                        <Search className="w-3.5 h-3.5 text-neutral-400" />
-                        <span>Search</span>
-                        <span className="ml-auto font-mono text-[11px] text-neutral-500 bg-white border border-neutral-200 rounded px-1.5 py-0.5">⌘K</span>
-                    </button>
+                    {/* Search — functional when onSearchChange is provided, else decorative */}
+                    {onSearchChange ? (
+                        <label className="hidden md:inline-flex items-center gap-2 h-[34px] pl-2.5 pr-2 w-44 lg:w-52 rounded-lg border border-neutral-200 bg-neutral-50 focus-within:bg-white focus-within:border-neutral-300 text-[13px] transition-colors">
+                            <Search className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />
+                            <input
+                                value={search ?? ""}
+                                onChange={(e) => onSearchChange(e.target.value)}
+                                placeholder={searchPlaceholder}
+                                className="min-w-0 flex-1 bg-transparent outline-none text-neutral-900 placeholder-neutral-400"
+                            />
+                        </label>
+                    ) : (
+                        <span className="hidden md:inline-flex items-center gap-2 h-[34px] pl-2.5 pr-2 w-44 lg:w-52 rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-500 text-[13px] cursor-default" aria-hidden="true">
+                            <Search className="w-3.5 h-3.5 text-neutral-400" />
+                            <span>Search</span>
+                            <span className="ml-auto font-mono text-[11px] text-neutral-500 bg-white border border-neutral-200 rounded px-1.5 py-0.5">⌘K</span>
+                        </span>
+                    )}
+
                     <button className="hidden lg:grid place-items-center w-[34px] h-[34px] rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 cursor-default" tabIndex={-1} aria-hidden="true">
                         <HelpCircle className="w-[18px] h-[18px]" />
                     </button>
+
+                    {/* New collection — contextual action next to help */}
+                    {onNewCollection && (
+                        <button
+                            onClick={onNewCollection}
+                            className="hidden md:inline-flex items-center gap-1.5 h-[34px] px-3 rounded-lg text-[12px] font-semibold bg-neutral-900 hover:bg-neutral-700 text-white cursor-pointer"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            New collection
+                        </button>
+                    )}
 
                     {/* Avatar menu */}
                     <DropdownMenu>

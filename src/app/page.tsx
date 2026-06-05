@@ -46,6 +46,8 @@ export default function Home() {
   const [collection, setCollection] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing>(null);
   const [manageOpen, setManageOpen] = useState(false);
+  const [collectionSearch, setCollectionSearch] = useState("");
+  const [addNonce, setAddNonce] = useState(0);
 
   // Guard: don't persist nav state before the initial restore has run.
   const navRestored = useRef(false);
@@ -109,6 +111,7 @@ export default function Home() {
     setActiveRoomId(id);
     setCollection(null);
     setEditing(null);
+    setCollectionSearch("");
     setView("collections");
     setManageOpen(false);
   };
@@ -121,7 +124,12 @@ export default function Home() {
   const handleSelectCollection = (name: string) => {
     setCollection(name);
     setEditing(null);
+    setCollectionSearch("");
   };
+
+  // The collection list is the only surface the navbar search + "New collection" act on.
+  const inCollectionList = view === "collections" && !!activeRoomId && !collection && !editing;
+  const canCreateCollection = inCollectionList && userRole !== "viewer";
 
   const handleEditDoc = (doc: any) => {
     // Table rows are EJSON-*serialized* plain objects; convert back to BSON so the
@@ -160,6 +168,10 @@ export default function Home() {
         activeRoomId={activeRoomId}
         onSelectRoom={handleSelectRoom}
         onManageClusters={() => setManageOpen(true)}
+        search={collectionSearch}
+        onSearchChange={inCollectionList ? setCollectionSearch : undefined}
+        searchPlaceholder="Search collection…"
+        onNewCollection={canCreateCollection ? () => setAddNonce((n) => n + 1) : undefined}
       />
 
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
@@ -198,6 +210,8 @@ export default function Home() {
                 activeCollection={collection}
                 onSelect={handleSelectCollection}
                 userRole={userRole}
+                search={collectionSearch}
+                addSignal={addNonce}
               />
             )}
           </>

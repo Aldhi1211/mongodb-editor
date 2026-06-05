@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { RefreshCcw, AlertTriangle, Loader2, Plus, Database, Search } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { RefreshCcw, AlertTriangle, Loader2, Database } from 'lucide-react'
 import ConfirmDialog from "@/components/ui/ConfirmDialog"
 import Breadcrumb from "@/components/Breadcrumb"
 import CollectionContextMenu from "./CollectionContextMenu"
@@ -17,9 +17,11 @@ type Props = {
     onSelect: (name: string) => void
     activeCollection: string | null
     userRole?: string
+    /** Search query (controlled from the navbar search box). */
+    search?: string
+    /** Incrementing counter that opens the "Add collection" dialog (navbar button). */
+    addSignal?: number
 }
-
-const PAGE_SIZE = 50
 
 function friendlyError(raw: string): string {
     if (raw.includes('wire version') || raw.includes('4.2') || raw.includes('3.6'))
@@ -98,10 +100,8 @@ function InputDialog({
 }
 
 // ── Main component (full-page) ───────────────────────────────────────────────
-export default function CollectionList({ roomId, roomName, onSelect, activeCollection, userRole = "viewer" }: Props) {
+export default function CollectionList({ roomId, roomName, onSelect, activeCollection, userRole = "viewer", search = '', addSignal = 0 }: Props) {
     const [collections, setCollections] = useState<Collection[]>([])
-    const [search, setSearch] = useState('')
-    const [page, setPage] = useState(1)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
@@ -261,13 +261,13 @@ export default function CollectionList({ roomId, roomName, onSelect, activeColle
             .sort((a, b) => a.name.localeCompare(b.name))
     }, [collections, search])
 
-    // reset to first page whenever the result set changes
-    useEffect(() => { setPage(1) }, [search, collections])
-
-    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-    const safePage = Math.min(page, totalPages)
-    const start = (safePage - 1) * PAGE_SIZE
-    const pageItems = filtered.slice(start, start + PAGE_SIZE)
+    // Open the "Add collection" dialog when the navbar button bumps addSignal.
+    // Capture the value at mount so a remount with a persisted nonce doesn't re-open it.
+    const initialAddSignal = useRef(addSignal)
+    useEffect(() => {
+        if (addSignal === initialAddSignal.current) return
+        setAddError(''); setShowAdd(true)
+    }, [addSignal])
 
     return (
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden bg-white">
@@ -291,28 +291,6 @@ export default function CollectionList({ roomId, roomName, onSelect, activeColle
                 }
             />
 
-            {/* Toolbar: search + new */}
-            <div className="flex items-center gap-2 px-4 sm:px-5 lg:px-6 py-2.5 border-b border-gray-200 flex-shrink-0">
-                <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                    <input
-                        placeholder="Search collection…"
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 text-[13px] text-gray-700 outline-none focus:border-gray-400"
-                    />
-                </div>
-                {userRole !== "viewer" && (
-                    <button
-                        onClick={() => { setAddError(''); setShowAdd(true) }}
-                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[12px] font-medium bg-[#111] hover:bg-[#333] text-white cursor-pointer flex-shrink-0"
-                    >
-                        <Plus className="w-3.5 h-3.5" />
-                        New collection
-                    </button>
-                )}
-            </div>
-
             {/* Body */}
             <div className="flex-1 overflow-y-auto">
                 {loading && (
@@ -335,7 +313,7 @@ export default function CollectionList({ roomId, roomName, onSelect, activeColle
 
                 {!loading && !error && (
                     <div className="divide-y divide-gray-100">
-                        {pageItems.map(col => {
+                        {filtered.map(col => {
                             const active = col.name === activeCollection
                             return (
                                 <div
@@ -379,31 +357,6 @@ export default function CollectionList({ roomId, roomName, onSelect, activeColle
                     </div>
                 )}
             </div>
-
-            {/* Pagination */}
-            {filtered.length > PAGE_SIZE && (
-                <div className="flex items-center justify-between px-4 sm:px-5 lg:px-6 py-2 border-t border-gray-200 flex-shrink-0">
-                    <span className="text-[11px] text-gray-400">
-                        {start + 1}–{Math.min(start + PAGE_SIZE, filtered.length)} of {filtered.length}
-                    </span>
-                    <div className="flex gap-1">
-                        <button
-                            disabled={safePage <= 1}
-                            className="px-3 py-1 rounded-md border border-gray-200 text-[12px] text-gray-600 hover:bg-gray-50 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-                            onClick={() => setPage(p => Math.max(1, p - 1))}
-                        >
-                            ‹ Prev
-                        </button>
-                        <button
-                            disabled={safePage >= totalPages}
-                            className="px-3 py-1 rounded-md border border-gray-200 text-[12px] text-gray-600 hover:bg-gray-50 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                        >
-                            Next ›
-                        </button>
-                    </div>
-                </div>
-            )}
 
             {/* Context menu */}
             <CollectionContextMenu
