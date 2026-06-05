@@ -98,6 +98,7 @@ export function NavBarMenu({
     const router = useRouter()
     const [userEmail, setUserEmail] = useState("")
     const [draftCount, setDraftCount] = useState(0)
+    const [clusterSearch, setClusterSearch] = useState("")
 
     // Derive the signed-in user's email from the JWT.
     useEffect(() => {
@@ -132,6 +133,9 @@ export function NavBarMenu({
 
     const activeRoom = rooms.find((r) => r._id === activeRoomId)
     const avatarLetter = (userEmail.charAt(0) || "?").toUpperCase()
+    const filteredClusters = rooms.filter((r) =>
+        r.name.toLowerCase().includes(clusterSearch.toLowerCase()),
+    )
 
     return (
         <header className="sticky top-0 z-50 w-full border-b border-neutral-200 bg-white flex-shrink-0">
@@ -217,7 +221,7 @@ export function NavBarMenu({
                     {/* Cluster selector */}
                     {rooms.length > 0 && (
                         <div className="hidden md:block">
-                            <DropdownMenu>
+                            <DropdownMenu onOpenChange={(open) => { if (!open) setClusterSearch("") }}>
                                 <DropdownMenuTrigger asChild>
                                     <button className="flex items-center gap-2 h-[34px] pl-3 pr-2.5 max-w-[220px] rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 hover:border-neutral-300 transition-colors cursor-pointer">
                                         <span className="w-2 h-2 rounded-full bg-neutral-900 flex-shrink-0" />
@@ -229,19 +233,40 @@ export function NavBarMenu({
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start" className="w-72">
                                     <p className="px-2 pb-1.5 pt-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-400">Clusters</p>
-                                    {rooms.map((room) => (
-                                        <DropdownMenuItem
-                                            key={room._id}
-                                            onClick={() => onSelectRoom?.(room._id)}
-                                            className="gap-2"
-                                        >
-                                            <span className="w-2 h-2 rounded-full bg-neutral-900 flex-shrink-0" />
-                                            <span className="truncate font-mono text-[13px] text-neutral-900 flex-1">{room.name}</span>
-                                            {room._id === activeRoomId && (
-                                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l4.5 4.5L19 7" /></svg>
-                                            )}
-                                        </DropdownMenuItem>
-                                    ))}
+
+                                    {/* Search — stop key events so Radix typeahead doesn't steal them */}
+                                    <div className="px-1.5 pb-1.5">
+                                        <div className="flex items-center gap-2 h-8 px-2 rounded-md border border-neutral-200 bg-neutral-50 focus-within:bg-white focus-within:border-neutral-300 transition-colors">
+                                            <Search className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />
+                                            <input
+                                                value={clusterSearch}
+                                                onChange={(e) => setClusterSearch(e.target.value)}
+                                                onKeyDown={(e) => e.stopPropagation()}
+                                                placeholder="Search cluster…"
+                                                className="min-w-0 flex-1 bg-transparent outline-none text-[13px] text-neutral-900 placeholder-neutral-400"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Cap the list at ~5 rows; scroll beyond that */}
+                                    <div className="max-h-[170px] overflow-y-auto">
+                                        {filteredClusters.map((room) => (
+                                            <DropdownMenuItem
+                                                key={room._id}
+                                                onClick={() => onSelectRoom?.(room._id)}
+                                                className="gap-2"
+                                            >
+                                                <span className="w-2 h-2 rounded-full bg-neutral-900 flex-shrink-0" />
+                                                <span className="truncate font-mono text-[13px] text-neutral-900 flex-1">{room.name}</span>
+                                                {room._id === activeRoomId && (
+                                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l4.5 4.5L19 7" /></svg>
+                                                )}
+                                            </DropdownMenuItem>
+                                        ))}
+                                        {filteredClusters.length === 0 && (
+                                            <p className="px-2 py-3 text-[12px] text-neutral-400 text-center">No clusters found</p>
+                                        )}
+                                    </div>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem onClick={onManageClusters} className="gap-2 text-neutral-600">
                                         <Plus className="w-3.5 h-3.5" />

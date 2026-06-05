@@ -338,7 +338,7 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer",
               return (
                 <tr
                   key={row.id}
-                  className={`group cursor-pointer ${isCtx ? "bg-[#111]" : "hover:bg-gray-50"}`}
+                  className={`group cursor-pointer ${isCtx ? "bg-[#111]" : "hover:bg-gray-100"}`}
                   onClick={() => {
                     if (canWrite) openEdit(row.original);
                     else setViewDoc(row.original);
@@ -358,8 +358,8 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer",
                             ? "sticky left-0 z-10 bg-[#111] border-r border-[#333] text-right pr-2 w-9 text-[11px] text-gray-500 select-none"
                             : "border-gray-800 text-gray-100"
                           : i === 0
-                            ? "sticky left-0 z-10 bg-white group-hover:bg-gray-50 border-r border-gray-200 border-gray-100 text-right pr-2 w-9 text-[11px] text-gray-400 select-none"
-                            : "border-gray-100 text-gray-800 group-hover:bg-gray-50"
+                            ? "sticky left-0 z-10 bg-white group-hover:bg-gray-100 border-r border-gray-200 border-gray-100 text-right pr-2 w-9 text-[11px] text-gray-400 select-none"
+                            : "border-gray-100 text-gray-800 group-hover:bg-gray-100"
                         }
                       `}
                     >

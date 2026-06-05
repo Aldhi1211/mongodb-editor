@@ -323,8 +323,12 @@ export default function CollectionList({ roomId, roomName, onSelect, activeColle
                             return (
                                 <div
                                     key={col.name}
-                                    className={`group flex items-center gap-3 px-4 sm:px-5 lg:px-6 py-3 cursor-pointer select-none transition-colors
-                                        ${active ? 'bg-[#111]' : menuCol === col.name && menuPos ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                                    className={`group flex items-center gap-3 border-l-2 px-4 sm:px-5 lg:px-6 py-3 cursor-pointer select-none transition-colors
+                                        ${active
+                                            ? 'bg-[#111] border-[#111]'
+                                            : menuCol === col.name && menuPos
+                                                ? 'bg-blue-50 border-blue-300'
+                                                : 'border-transparent hover:bg-gray-100 hover:border-neutral-900'}`}
                                     onClick={() => onSelect(col.name)}
                                     onContextMenu={e => {
                                         e.preventDefault()
@@ -332,10 +336,10 @@ export default function CollectionList({ roomId, roomName, onSelect, activeColle
                                         setMenuPos({ x: e.clientX, y: e.clientY })
                                     }}
                                 >
-                                    <div className={`w-8 h-8 rounded-lg grid place-items-center flex-shrink-0 ${active ? 'bg-white/10' : 'bg-gray-100 border border-gray-200'}`}>
-                                        <Database className={`w-4 h-4 ${active ? 'text-white' : 'text-gray-400'}`} />
+                                    <div className={`w-8 h-8 rounded-lg grid place-items-center flex-shrink-0 transition-colors ${active ? 'bg-white/10' : 'bg-gray-100 border border-gray-200 group-hover:bg-white group-hover:border-gray-300'}`}>
+                                        <Database className={`w-4 h-4 transition-colors ${active ? 'text-white' : 'text-gray-400 group-hover:text-gray-700'}`} />
                                     </div>
-                                    <span className={`text-[13px] font-mono truncate flex-1 ${active ? 'text-white' : 'text-gray-800'}`}>
+                                    <span className={`text-[13px] font-mono truncate flex-1 transition-colors ${active ? 'text-white' : 'text-gray-800 group-hover:text-gray-950'}`}>
                                         {col.name}
                                     </span>
                                     {draftSet.has(col.name) && (
