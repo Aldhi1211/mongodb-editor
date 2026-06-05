@@ -224,9 +224,9 @@ export function NavBarMenu({
                         <div className="hidden md:block">
                             <DropdownMenu onOpenChange={(open) => { if (!open) setClusterSearch("") }}>
                                 <DropdownMenuTrigger asChild>
-                                    <button className="flex items-center gap-2 h-[34px] pl-3 pr-2.5 max-w-[220px] rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 hover:border-neutral-300 transition-colors cursor-pointer">
+                                    <button className="flex items-center gap-2 h-[34px] w-[210px] pl-3 pr-2.5 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 hover:border-neutral-300 transition-colors cursor-pointer">
                                         <span className="w-2 h-2 rounded-full bg-neutral-900 flex-shrink-0" />
-                                        <span className="truncate font-mono text-[13px] text-neutral-900">
+                                        <span className="truncate flex-1 min-w-0 text-left font-mono text-[13px] text-neutral-900">
                                             {activeRoom?.name ?? "Select cluster"}
                                         </span>
                                         <ChevronDown className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />
