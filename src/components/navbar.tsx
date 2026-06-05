@@ -1,16 +1,13 @@
 "use client"
 
-import * as React from "react"
 import Link from "next/link"
-import { CircleCheckIcon, CircleHelpIcon, CircleIcon, MenuIcon } from "lucide-react"
+import { BarChart2, FileText, LogOut, MenuIcon } from "lucide-react"
 
 import {
     NavigationMenu,
-    NavigationMenuContent,
     NavigationMenuItem,
     NavigationMenuLink,
     NavigationMenuList,
-    NavigationMenuTrigger,
     navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu"
 import {
@@ -21,321 +18,200 @@ import {
 } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 
-const components: { title: string; href: string; description: string }[] = [
-    {
-        title: "Alert Dialog",
-        href: "/docs/primitives/alert-dialog",
-        description:
-            "A modal dialog that interrupts the user with important content and expects a response.",
-    },
-    {
-        title: "Hover Card",
-        href: "/docs/primitives/hover-card",
-        description:
-            "For sighted users to preview content available behind a link.",
-    },
-    {
-        title: "Progress",
-        href: "/docs/primitives/progress",
-        description:
-            "Displays an indicator showing the completion progress of a task, typically displayed as a progress bar.",
-    },
-    {
-        title: "Scroll-area",
-        href: "/docs/primitives/scroll-area",
-        description: "Visually or semantically separates content.",
-    },
-    {
-        title: "Tabs",
-        href: "/docs/primitives/tabs",
-        description:
-            "A set of layered sections of content—known as tab panels—that are displayed one at a time.",
-    },
-    {
-        title: "Tooltip",
-        href: "/docs/primitives/tooltip",
-        description:
-            "A popup that displays information related to an element when the element receives keyboard focus or the mouse hovers over it.",
-    },
+export type NavBarTab = "data" | "audit"
+
+interface NavBarMenuProps {
+    tab: NavBarTab
+    onTabChange: (tab: NavBarTab) => void
+    draftCount: number
+    userEmail: string
+    onLogout: () => void
+}
+
+/** Montra brand mark — same glyph used on the auth pages. */
+function BrandMark() {
+    return (
+        <svg width="26" height="26" viewBox="0 0 32 32" fill="none" aria-hidden="true" focusable="false">
+            <rect x="1" y="1" width="30" height="30" rx="8" fill="#0A0A0A" />
+            <path
+                d="M16 12.9V16M16 16L11 19.5M16 16L21 19.5"
+                stroke="#FFFFFF"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+            <circle cx="16" cy="10.6" r="2.05" fill="#FFFFFF" />
+            <circle cx="10.6" cy="21.4" r="2.05" fill="#FFFFFF" />
+            <circle cx="21.4" cy="21.4" r="2.05" fill="#FFFFFF" />
+        </svg>
+    )
+}
+
+const TABS: { value: NavBarTab; label: string }[] = [
+    { value: "data", label: "Data" },
+    { value: "audit", label: "Audit Log" },
 ]
 
-export function NavBarMenu() {
+export function NavBarMenu({ tab, onTabChange, draftCount, userEmail, onLogout }: NavBarMenuProps) {
     return (
-        <>
+        <header className="flex-shrink-0 px-3 pt-3">
             {/* Desktop Navigation */}
-            <nav className="hidden lg:flex justify-end px-4 py-2 fixed top-2 left-75 right-2 z-50 bg-gray-200/80 backdrop-blur shadow-2xs shadow-black rounded-2xl">
-                <div className="flex justify-end rounded-2xl">
+            <div className="hidden lg:flex items-center justify-between px-4 py-2 bg-gray-200/80 backdrop-blur shadow-2xs shadow-black rounded-2xl">
+                {/* Left — Brand + links */}
+                <div className="flex items-center gap-3">
+                    <Link href="/" className="flex items-center gap-2">
+                        <BrandMark />
+                        <span className="text-[15px] font-semibold tracking-tight text-neutral-900">Montra</span>
+                    </Link>
+                    <div className="w-px h-5 bg-neutral-400/50 mx-1" />
                     <NavigationMenu viewport={false}>
-                        <NavigationMenuList className="ml-auto">
-                            <NavigationMenuItem>
-                                <NavigationMenuTrigger>Home</NavigationMenuTrigger>
-                                <NavigationMenuContent>
-                                    <ul className="grid gap-2 md:w-[400px] lg:w-[500px] lg:grid-cols-[.75fr_1fr]">
-                                        <li className="row-span-3">
-                                            <NavigationMenuLink asChild>
-                                                <a
-                                                    className="from-muted/50 to-muted flex h-full w-full flex-col justify-end rounded-md bg-linear-to-b p-6 no-underline outline-hidden select-none focus:shadow-md"
-                                                    href="/"
-                                                >
-                                                    <div className="mt-4 mb-2 text-lg font-medium">
-                                                        shadcn/ui
-                                                    </div>
-                                                    <p className="text-muted-foreground text-sm leading-tight">
-                                                        Beautifully designed components built with Tailwind CSS.
-                                                    </p>
-                                                </a>
-                                            </NavigationMenuLink>
-                                        </li>
-                                        <ListItem href="/docs" title="Introduction">
-                                            Re-usable components built using Radix UI and Tailwind CSS.
-                                        </ListItem>
-                                        <ListItem href="/docs/installation" title="Installation">
-                                            How to install dependencies and structure your app.
-                                        </ListItem>
-                                        <ListItem href="/docs/primitives/typography" title="Typography">
-                                            Styles for headings, paragraphs, lists...etc
-                                        </ListItem>
-                                    </ul>
-                                </NavigationMenuContent>
-                            </NavigationMenuItem>
-                            <NavigationMenuItem>
-                                <NavigationMenuTrigger>Components</NavigationMenuTrigger>
-                                <NavigationMenuContent>
-                                    <ul className="grid w-[400px] gap-2 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
-                                        {components.map((component) => (
-                                            <ListItem
-                                                key={component.title}
-                                                title={component.title}
-                                                href={component.href}
-                                            >
-                                                {component.description}
-                                            </ListItem>
-                                        ))}
-                                    </ul>
-                                </NavigationMenuContent>
-                            </NavigationMenuItem>
+                        <NavigationMenuList>
                             <NavigationMenuItem>
                                 <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
-                                    <Link href="/docs">Docs</Link>
+                                    <Link href="/chart" className="flex-row items-center gap-1.5">
+                                        <BarChart2 className="h-4 w-4" />
+                                        Chart
+                                    </Link>
                                 </NavigationMenuLink>
                             </NavigationMenuItem>
                             <NavigationMenuItem>
-                                <NavigationMenuTrigger>List</NavigationMenuTrigger>
-                                <NavigationMenuContent>
-                                    <ul className="grid w-[300px] gap-4">
-                                        <li>
-                                            <NavigationMenuLink asChild>
-                                                <Link href="/">
-                                                    <div className="font-medium">Workflow Canvas</div>
-                                                    <div className="text-muted-foreground">
-                                                        Create and manage workflows with nodes and fields.
-                                                    </div>
-                                                </Link>
-                                            </NavigationMenuLink>
-                                            <NavigationMenuLink asChild>
-                                                <Link href="/reports">
-                                                    <div className="font-medium">Report Canvas</div>
-                                                    <div className="text-muted-foreground">
-                                                        Create and manage reports with dynamic fields.
-                                                    </div>
-                                                </Link>
-                                            </NavigationMenuLink>
-                                            <NavigationMenuLink asChild>
-                                                <Link href="#">
-                                                    <div className="font-medium">Components</div>
-                                                    <div className="text-muted-foreground">
-                                                        Browse all components in the library.
-                                                    </div>
-                                                </Link>
-                                            </NavigationMenuLink>
-                                            <NavigationMenuLink asChild>
-                                                <Link href="#">
-                                                    <div className="font-medium">Documentation</div>
-                                                    <div className="text-muted-foreground">
-                                                        Learn how to use the library.
-                                                    </div>
-                                                </Link>
-                                            </NavigationMenuLink>
-                                            <NavigationMenuLink asChild>
-                                                <Link href="#">
-                                                    <div className="font-medium">Blog</div>
-                                                    <div className="text-muted-foreground">
-                                                        Read our latest blog posts.
-                                                    </div>
-                                                </Link>
-                                            </NavigationMenuLink>
-                                        </li>
-                                    </ul>
-                                </NavigationMenuContent>
-                            </NavigationMenuItem>
-                            <NavigationMenuItem>
-                                <NavigationMenuTrigger>Simple</NavigationMenuTrigger>
-                                <NavigationMenuContent>
-                                    <ul className="grid w-[200px] gap-4">
-                                        <li>
-                                            <NavigationMenuLink asChild>
-                                                <Link href="#">Components</Link>
-                                            </NavigationMenuLink>
-                                            <NavigationMenuLink asChild>
-                                                <Link href="#">Documentation</Link>
-                                            </NavigationMenuLink>
-                                            <NavigationMenuLink asChild>
-                                                <Link href="#">Blocks</Link>
-                                            </NavigationMenuLink>
-                                        </li>
-                                    </ul>
-                                </NavigationMenuContent>
-                            </NavigationMenuItem>
-                            <NavigationMenuItem>
-                                <NavigationMenuTrigger>With Icon</NavigationMenuTrigger>
-                                <NavigationMenuContent>
-                                    <ul className="grid w-[200px] gap-4">
-                                        <li>
-                                            <NavigationMenuLink asChild>
-                                                <Link href="#" className="flex-row items-center gap-2">
-                                                    <CircleHelpIcon />
-                                                    Backlog
-                                                </Link>
-                                            </NavigationMenuLink>
-                                            <NavigationMenuLink asChild>
-                                                <Link href="#" className="flex-row items-center gap-2">
-                                                    <CircleIcon />
-                                                    To Do
-                                                </Link>
-                                            </NavigationMenuLink>
-                                            <NavigationMenuLink asChild>
-                                                <Link href="#" className="flex-row items-center gap-2">
-                                                    <CircleCheckIcon />
-                                                    Done
-                                                </Link>
-                                            </NavigationMenuLink>
-                                        </li>
-                                    </ul>
-                                </NavigationMenuContent>
+                                <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
+                                    <Link href="/drafts" className="flex-row items-center gap-1.5">
+                                        <FileText className="h-4 w-4" />
+                                        Drafts
+                                        {draftCount > 0 && (
+                                            <span className="text-[10px] bg-amber-500 text-white rounded-full px-1.5 py-px leading-none">
+                                                {draftCount}
+                                            </span>
+                                        )}
+                                    </Link>
+                                </NavigationMenuLink>
                             </NavigationMenuItem>
                         </NavigationMenuList>
                     </NavigationMenu>
                 </div>
-            </nav>
+
+                {/* Center — Tabs */}
+                <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-white/70 rounded-lg p-1 border border-neutral-300/70">
+                    {TABS.map((t) => (
+                        <button
+                            key={t.value}
+                            onClick={() => onTabChange(t.value)}
+                            className={`px-5 py-1.5 rounded-md text-[12px] font-medium cursor-pointer transition-all
+                                ${tab === t.value
+                                    ? "bg-neutral-900 text-white shadow-sm"
+                                    : "text-neutral-500 hover:text-neutral-900"
+                                }`}
+                        >
+                            {t.label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Right — User + Logout */}
+                <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 bg-white/70 border border-neutral-300/70 rounded-lg px-2.5 py-1.5">
+                        <div className="w-5 h-5 rounded-full bg-[#7c8cf8] flex items-center justify-center text-[10px] font-bold text-white uppercase flex-shrink-0">
+                            {userEmail.charAt(0) || "?"}
+                        </div>
+                        <span className="text-neutral-600 text-[11px] max-w-[150px] truncate leading-none">{userEmail}</span>
+                    </div>
+                    <button
+                        onClick={onLogout}
+                        className="flex items-center gap-1.5 text-neutral-500 hover:text-neutral-900 px-2.5 py-1.5 rounded-lg hover:bg-white/70 border border-transparent hover:border-neutral-300/70 text-[12px] cursor-pointer transition-all"
+                        title="Logout"
+                    >
+                        <LogOut className="h-4 w-4" />
+                    </button>
+                </div>
+            </div>
 
             {/* Mobile Navigation */}
-            <nav className="lg:hidden flex justify-end px-4 py-2 fixed top-2 right-2 z-50">
+            <div className="lg:hidden flex items-center justify-between px-4 py-2 bg-gray-200/80 backdrop-blur shadow-2xs shadow-black rounded-2xl">
+                <Link href="/" className="flex items-center gap-2">
+                    <BrandMark />
+                    <span className="text-[15px] font-semibold tracking-tight text-neutral-900">Montra</span>
+                </Link>
                 <Sheet>
                     <SheetTrigger asChild>
                         <Button
                             variant="outline"
                             size="icon"
-                            className="bg-gray-200/80 backdrop-blur shadow-2xs shadow-black rounded-xl"
+                            className="bg-white/70 backdrop-blur shadow-2xs shadow-black rounded-xl"
                         >
                             <MenuIcon className="h-5 w-5" />
                             <span className="sr-only">Toggle navigation menu</span>
                         </Button>
                     </SheetTrigger>
-                    <SheetContent side="right" className="w-[300px] sm:w-[400px]">
-                        <nav className="flex flex-col space-y-4">
-                            <div className="px-2 py-4">
-                                <h2 className="text-lg font-semibold">Menu</h2>
-                            </div>
-
-                            {/* Home Section */}
-                            <div className="space-y-2">
-                                <h3 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">Home</h3>
-                                <div className="space-y-1">
-                                    <SheetClose asChild>
-                                        <Link href="/docs" className="block px-2 py-2 text-sm hover:bg-gray-100 rounded-md">
-                                            Introduction
-                                        </Link>
-                                    </SheetClose>
-                                    <SheetClose asChild>
-                                        <Link href="/docs/installation" className="block px-2 py-2 text-sm hover:bg-gray-100 rounded-md">
-                                            Installation
-                                        </Link>
-                                    </SheetClose>
-                                    <SheetClose asChild>
-                                        <Link href="/docs/primitives/typography" className="block px-2 py-2 text-sm hover:bg-gray-100 rounded-md">
-                                            Typography
-                                        </Link>
-                                    </SheetClose>
+                    <SheetContent side="right" className="w-[300px] sm:w-[360px]">
+                        <nav className="flex flex-col space-y-6 p-4">
+                            {/* User */}
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-full bg-[#7c8cf8] flex items-center justify-center text-[12px] font-bold text-white uppercase flex-shrink-0">
+                                    {userEmail.charAt(0) || "?"}
                                 </div>
+                                <span className="text-sm text-neutral-700 truncate">{userEmail}</span>
                             </div>
 
-                            {/* Components Section */}
+                            {/* View tabs */}
                             <div className="space-y-2">
-                                <h3 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">Components</h3>
+                                <h3 className="font-medium text-xs text-muted-foreground uppercase tracking-wider">View</h3>
                                 <div className="space-y-1">
-                                    {components.map((component) => (
-                                        <SheetClose asChild key={component.title}>
-                                            <Link href={component.href} className="block px-2 py-2 text-sm hover:bg-gray-100 rounded-md">
-                                                {component.title}
-                                            </Link>
+                                    {TABS.map((t) => (
+                                        <SheetClose asChild key={t.value}>
+                                            <button
+                                                onClick={() => onTabChange(t.value)}
+                                                className={`block w-full text-left px-2 py-2 text-sm rounded-md transition-colors
+                                                    ${tab === t.value
+                                                        ? "bg-neutral-900 text-white"
+                                                        : "hover:bg-gray-100"
+                                                    }`}
+                                            >
+                                                {t.label}
+                                            </button>
                                         </SheetClose>
                                     ))}
                                 </div>
                             </div>
 
-                            {/* Other Links */}
+                            {/* Quick links */}
                             <div className="space-y-2">
-                                <h3 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">Quick Links</h3>
+                                <h3 className="font-medium text-xs text-muted-foreground uppercase tracking-wider">Quick Links</h3>
                                 <div className="space-y-1">
                                     <SheetClose asChild>
-                                        <Link href="/" className="block px-2 py-2 text-sm hover:bg-gray-100 rounded-md">
-                                            Workflow Canvas
+                                        <Link href="/chart" className="flex items-center gap-2 px-2 py-2 text-sm hover:bg-gray-100 rounded-md">
+                                            <BarChart2 className="h-4 w-4" />
+                                            Chart
                                         </Link>
                                     </SheetClose>
                                     <SheetClose asChild>
-                                        <Link href="/reports" className="block px-2 py-2 text-sm hover:bg-gray-100 rounded-md">
-                                            Report Canvas
-                                        </Link>
-                                    </SheetClose>
-                                    <SheetClose asChild>
-                                        <Link href="/docs" className="block px-2 py-2 text-sm hover:bg-gray-100 rounded-md">
-                                            Docs
-                                        </Link>
-                                    </SheetClose>
-                                    <SheetClose asChild>
-                                        <Link href="#" className="flex items-center px-2 py-2 text-sm hover:bg-gray-100 rounded-md">
-                                            <CircleHelpIcon className="h-4 w-4 mr-2" />
-                                            Backlog
-                                        </Link>
-                                    </SheetClose>
-                                    <SheetClose asChild>
-                                        <Link href="#" className="flex items-center px-2 py-2 text-sm hover:bg-gray-100 rounded-md">
-                                            <CircleIcon className="h-4 w-4 mr-2" />
-                                            To Do
-                                        </Link>
-                                    </SheetClose>
-                                    <SheetClose asChild>
-                                        <Link href="#" className="flex items-center px-2 py-2 text-sm hover:bg-gray-100 rounded-md">
-                                            <CircleCheckIcon className="h-4 w-4 mr-2" />
-                                            Done
+                                        <Link href="/drafts" className="flex items-center gap-2 px-2 py-2 text-sm hover:bg-gray-100 rounded-md">
+                                            <FileText className="h-4 w-4" />
+                                            Drafts
+                                            {draftCount > 0 && (
+                                                <span className="text-[10px] bg-amber-500 text-white rounded-full px-1.5 py-px leading-none">
+                                                    {draftCount}
+                                                </span>
+                                            )}
                                         </Link>
                                     </SheetClose>
                                 </div>
                             </div>
+
+                            {/* Logout */}
+                            <SheetClose asChild>
+                                <button
+                                    onClick={onLogout}
+                                    className="flex items-center gap-2 px-2 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md"
+                                >
+                                    <LogOut className="h-4 w-4" />
+                                    Logout
+                                </button>
+                            </SheetClose>
                         </nav>
                     </SheetContent>
                 </Sheet>
-            </nav>
-        </>
-    )
-}
-
-function ListItem({
-    title,
-    children,
-    href,
-    ...props
-}: React.ComponentPropsWithoutRef<"li"> & { href: string }) {
-    return (
-        <li {...props}>
-            <NavigationMenuLink asChild>
-                <Link href={href}>
-                    <div className="text-sm leading-none font-medium">{title}</div>
-                    <p className="text-muted-foreground line-clamp-2 text-sm leading-snug">
-                        {children}
-                    </p>
-                </Link>
-            </NavigationMenuLink>
-        </li>
+            </div>
+        </header>
     )
 }

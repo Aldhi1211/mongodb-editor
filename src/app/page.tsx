@@ -6,8 +6,7 @@ import RoomList from "@/components/rooms/RoomList";
 import CollectionList from "@/components/collections/CollectionList";
 import DocumentTable from "@/components/documents/DocumentTable";
 import AuditViewer from "@/components/AuditViewer";
-import { LogOut, Database, BarChart2, FileText } from "lucide-react";
-import Link from "next/link";
+import { NavBarMenu } from "@/components/navbar";
 import { jwtDecode } from "jwt-decode";
 
 export default function Home() {
@@ -97,70 +96,13 @@ export default function Home() {
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden">
       {/* Topbar */}
-      <div className="flex items-center justify-between px-5 h-12 bg-[#0c0c0c] border-b border-[#1f1f1f] flex-shrink-0">
-
-        {/* Left — Brand */}
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-[#1a1a1a] border border-[#2e2e2e] flex items-center justify-center">
-            <Database className="w-3.5 h-3.5 text-[#7c8cf8]" />
-          </div>
-          <span className="text-white text-[13px] font-semibold tracking-tight">MongoStudio</span>
-          <div className="w-px h-4 bg-[#2a2a2a] mx-1" />
-          <Link
-            href="/chart"
-            className="flex items-center gap-1.5 text-[#555] hover:text-[#7c8cf8] px-2 py-1 rounded-md hover:bg-[#1a1a1a] text-[12px] transition-all"
-          >
-            <BarChart2 className="w-3.5 h-3.5" />
-            Chart
-          </Link>
-          <Link
-            href="/drafts"
-            className="flex items-center gap-1.5 text-[#555] hover:text-[#7c8cf8] px-2 py-1 rounded-md hover:bg-[#1a1a1a] text-[12px] transition-all"
-          >
-            <FileText className="w-3.5 h-3.5" />
-            Drafts
-            {draftCount > 0 && (
-              <span className="text-[10px] bg-amber-500 text-white rounded-full px-1.5 py-px leading-none">
-                {draftCount}
-              </span>
-            )}
-          </Link>
-        </div>
-
-        {/* Center — Tabs */}
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-[#181818] rounded-lg p-1 border border-[#272727]">
-          {(["data", "audit"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => handleTabChange(t)}
-              className={`px-5 py-1.5 rounded-md text-[12px] font-medium cursor-pointer transition-all
-                ${tab === t
-                  ? "bg-white text-[#111] shadow-sm"
-                  : "text-[#666] hover:text-[#bbb]"
-                }`}
-            >
-              {t === "data" ? "Data" : "Audit Log"}
-            </button>
-          ))}
-        </div>
-
-        {/* Right — User + Logout */}
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 bg-[#181818] border border-[#272727] rounded-lg px-2.5 py-1.5">
-            <div className="w-5 h-5 rounded-full bg-[#7c8cf8] flex items-center justify-center text-[10px] font-bold text-white uppercase flex-shrink-0">
-              {userEmail.charAt(0) || "?"}
-            </div>
-            <span className="text-[#888] text-[11px] max-w-[150px] truncate leading-none">{userEmail}</span>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-1.5 text-[#666] hover:text-white px-2.5 py-1.5 rounded-lg hover:bg-[#1a1a1a] border border-transparent hover:border-[#2a2a2a] text-[12px] cursor-pointer transition-all"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-      </div>
+      <NavBarMenu
+        tab={tab}
+        onTabChange={handleTabChange}
+        draftCount={draftCount}
+        userEmail={userEmail}
+        onLogout={handleLogout}
+      />
 
       {/* Main */}
       <div className="flex flex-1 overflow-hidden relative">
