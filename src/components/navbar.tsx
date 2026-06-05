@@ -1,6 +1,9 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
+import { usePathname, useRouter } from "next/navigation"
+import { jwtDecode } from "jwt-decode"
 import { BarChart2, FileText, History, LogOut, MenuIcon, Table2 } from "lucide-react"
 
 import {
@@ -14,11 +17,10 @@ import { Button } from "@/components/ui/button"
 export type NavBarTab = "data" | "audit"
 
 interface NavBarMenuProps {
-    tab: NavBarTab
-    onTabChange: (tab: NavBarTab) => void
-    draftCount: number
-    userEmail: string
-    onLogout: () => void
+    /** Current home view. Only provided on the home page, where Editor/Audit are a view toggle. */
+    view?: NavBarTab
+    /** Toggle handler for the home view. When omitted (other pages), Editor/Audit navigate home. */
+    onViewChange?: (view: NavBarTab) => void
 }
 
 /** Montra brand mark — same glyph used on the auth pages. */
@@ -54,7 +56,50 @@ function DraftBadge({ count }: { count: number }) {
     )
 }
 
-export function NavBarMenu({ tab, onTabChange, draftCount, userEmail, onLogout }: NavBarMenuProps) {
+export function NavBarMenu({ view, onViewChange }: NavBarMenuProps) {
+    const router = useRouter()
+    const pathname = usePathname()
+    const [userEmail, setUserEmail] = useState("")
+    const [draftCount, setDraftCount] = useState(0)
+
+    // Derive the signed-in user's email from the JWT.
+    useEffect(() => {
+        const t = localStorage.getItem("token")
+        if (!t) return
+        try { setUserEmail((jwtDecode(t) as any).email || "") } catch { /* ignore */ }
+    }, [])
+
+    // Track draft count (add + edit drafts) for the Drafts badge.
+    useEffect(() => {
+        const count = () =>
+            Object.keys(localStorage).filter((k) => /^mongoedit:(draft|editdraft):/.test(k)).length
+        setDraftCount(count())
+        const update = () => setDraftCount(count())
+        window.addEventListener("mongoedit:saved", update)
+        window.addEventListener("storage", update)
+        return () => {
+            window.removeEventListener("mongoedit:saved", update)
+            window.removeEventListener("storage", update)
+        }
+    }, [])
+
+    const isHome = pathname === "/"
+    const onChart = pathname.startsWith("/chart")
+    const onDrafts = pathname.startsWith("/drafts")
+
+    const goView = (v: NavBarTab) => {
+        if (onViewChange) onViewChange(v)
+        else router.push(`/?view=${v}`)
+    }
+
+    const handleLogout = () => {
+        localStorage.removeItem("token")
+        router.replace("/login")
+    }
+
+    const editorActive = isHome && view === "data"
+    const auditActive = isHome && view === "audit"
+
     return (
         <header className="flex-shrink-0 bg-white border-b border-neutral-200">
             <div className="flex items-center h-14 px-5 gap-4">
@@ -68,25 +113,19 @@ export function NavBarMenu({ tab, onTabChange, draftCount, userEmail, onLogout }
 
                 {/* Desktop nav — Editor / Audit Log / Chart / Drafts in one row */}
                 <nav className="hidden lg:flex items-center gap-1">
-                    <button
-                        onClick={() => onTabChange("data")}
-                        className={`${ITEM_BASE} cursor-pointer ${tab === "data" ? ITEM_ACTIVE : ITEM_IDLE}`}
-                    >
+                    <button onClick={() => goView("data")} className={`${ITEM_BASE} cursor-pointer ${editorActive ? ITEM_ACTIVE : ITEM_IDLE}`}>
                         <Table2 className="h-4 w-4" />
                         Editor
                     </button>
-                    <button
-                        onClick={() => onTabChange("audit")}
-                        className={`${ITEM_BASE} cursor-pointer ${tab === "audit" ? ITEM_ACTIVE : ITEM_IDLE}`}
-                    >
+                    <button onClick={() => goView("audit")} className={`${ITEM_BASE} cursor-pointer ${auditActive ? ITEM_ACTIVE : ITEM_IDLE}`}>
                         <History className="h-4 w-4" />
                         Audit Log
                     </button>
-                    <Link href="/chart" className={`${ITEM_BASE} ${ITEM_IDLE}`}>
+                    <Link href="/chart" className={`${ITEM_BASE} ${onChart ? ITEM_ACTIVE : ITEM_IDLE}`}>
                         <BarChart2 className="h-4 w-4" />
                         Chart
                     </Link>
-                    <Link href="/drafts" className={`${ITEM_BASE} ${ITEM_IDLE}`}>
+                    <Link href="/drafts" className={`${ITEM_BASE} ${onDrafts ? ITEM_ACTIVE : ITEM_IDLE}`}>
                         <FileText className="h-4 w-4" />
                         Drafts
                         <DraftBadge count={draftCount} />
@@ -102,7 +141,7 @@ export function NavBarMenu({ tab, onTabChange, draftCount, userEmail, onLogout }
                         <span className="text-neutral-600 text-[12px] max-w-[160px] truncate leading-none">{userEmail}</span>
                     </div>
                     <button
-                        onClick={onLogout}
+                        onClick={handleLogout}
                         className="flex items-center gap-1.5 text-neutral-500 hover:text-neutral-900 px-2.5 py-1.5 rounded-md hover:bg-neutral-100 text-[13px] font-medium cursor-pointer transition-colors"
                         title="Logout"
                     >
@@ -132,31 +171,25 @@ export function NavBarMenu({ tab, onTabChange, draftCount, userEmail, onLogout }
                                 {/* Nav items */}
                                 <div className="space-y-1">
                                     <SheetClose asChild>
-                                        <button
-                                            onClick={() => onTabChange("data")}
-                                            className={`w-full ${ITEM_BASE} ${tab === "data" ? ITEM_ACTIVE : ITEM_IDLE}`}
-                                        >
+                                        <button onClick={() => goView("data")} className={`w-full ${ITEM_BASE} ${editorActive ? ITEM_ACTIVE : ITEM_IDLE}`}>
                                             <Table2 className="h-4 w-4" />
                                             Editor
                                         </button>
                                     </SheetClose>
                                     <SheetClose asChild>
-                                        <button
-                                            onClick={() => onTabChange("audit")}
-                                            className={`w-full ${ITEM_BASE} ${tab === "audit" ? ITEM_ACTIVE : ITEM_IDLE}`}
-                                        >
+                                        <button onClick={() => goView("audit")} className={`w-full ${ITEM_BASE} ${auditActive ? ITEM_ACTIVE : ITEM_IDLE}`}>
                                             <History className="h-4 w-4" />
                                             Audit Log
                                         </button>
                                     </SheetClose>
                                     <SheetClose asChild>
-                                        <Link href="/chart" className={`${ITEM_BASE} ${ITEM_IDLE}`}>
+                                        <Link href="/chart" className={`${ITEM_BASE} ${onChart ? ITEM_ACTIVE : ITEM_IDLE}`}>
                                             <BarChart2 className="h-4 w-4" />
                                             Chart
                                         </Link>
                                     </SheetClose>
                                     <SheetClose asChild>
-                                        <Link href="/drafts" className={`${ITEM_BASE} ${ITEM_IDLE}`}>
+                                        <Link href="/drafts" className={`${ITEM_BASE} ${onDrafts ? ITEM_ACTIVE : ITEM_IDLE}`}>
                                             <FileText className="h-4 w-4" />
                                             Drafts
                                             <DraftBadge count={draftCount} />
@@ -167,7 +200,7 @@ export function NavBarMenu({ tab, onTabChange, draftCount, userEmail, onLogout }
                                 {/* Logout */}
                                 <SheetClose asChild>
                                     <button
-                                        onClick={onLogout}
+                                        onClick={handleLogout}
                                         className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md"
                                     >
                                         <LogOut className="h-4 w-4" />

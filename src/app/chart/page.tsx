@@ -4,8 +4,9 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { jwtDecode } from "jwt-decode";
 import Link from "next/link";
+import { NavBarMenu } from "@/components/navbar";
 import {
-  Database, ArrowLeft, BarChart2, Plus, Trash2,
+  BarChart2, Plus, Trash2,
   LayoutGrid, Clock, ChevronRight, Loader2, Search,
 } from "lucide-react";
 
@@ -44,45 +45,45 @@ function CreateDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#111] border border-[#222] rounded-2xl w-full max-w-md mx-4 overflow-hidden shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white border border-gray-200 rounded-2xl w-full max-w-md mx-4 overflow-hidden shadow-2xl">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-[#1f1f1f]">
-          <h2 className="text-[14px] font-semibold text-white">Create New Chart</h2>
-          <p className="text-[11px] text-[#555] mt-0.5">Add a chart to your workspace</p>
+        <div className="px-6 py-4 border-b border-gray-100">
+          <h2 className="text-[14px] font-semibold text-gray-900">Create New Chart</h2>
+          <p className="text-[11px] text-gray-400 mt-0.5">Add a chart to your workspace</p>
         </div>
 
         {/* Body */}
         <div className="px-6 py-4 flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-medium text-[#666]">Name</label>
+            <label className="text-[11px] font-medium text-gray-600">Name</label>
             <input
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && submit()}
               placeholder="e.g. Sales Report Flow"
-              className="bg-[#0c0c0c] border border-[#252525] rounded-lg px-3 py-2 text-[13px] text-white placeholder-[#3a3a3a] outline-none focus:border-[#7c8cf8] transition-colors"
+              className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-[13px] text-gray-900 placeholder-gray-400 outline-none focus:border-[#7c8cf8] transition-colors"
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-medium text-[#666]">Description <span className="text-[#3a3a3a]">(optional)</span></label>
+            <label className="text-[11px] font-medium text-gray-600">Description <span className="text-gray-400">(optional)</span></label>
             <textarea
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
               placeholder="Describe what this chart does…"
               rows={3}
-              className="bg-[#0c0c0c] border border-[#252525] rounded-lg px-3 py-2 text-[13px] text-white placeholder-[#3a3a3a] outline-none focus:border-[#7c8cf8] transition-colors resize-none"
+              className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-[13px] text-gray-900 placeholder-gray-400 outline-none focus:border-[#7c8cf8] transition-colors resize-none"
             />
           </div>
-          {error && <p className="text-[12px] text-red-400">{error}</p>}
+          {error && <p className="text-[12px] text-red-500">{error}</p>}
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-[#1f1f1f] flex items-center justify-end gap-2">
+        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-[12px] text-[#666] hover:text-white hover:bg-[#1a1a1a] transition-all cursor-pointer"
+            className="px-4 py-2 rounded-lg text-[12px] text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-all cursor-pointer"
           >
             Cancel
           </button>
@@ -103,7 +104,6 @@ function CreateDialog({
 export default function ChartListPage() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
-  const [userEmail, setUserEmail] = useState("");
   const [charts, setCharts] = useState<Chart[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -120,7 +120,6 @@ export default function ChartListPage() {
         router.replace("/login");
       } else {
         setToken(t);
-        setUserEmail(decoded.email || "");
       }
     } catch {
       localStorage.removeItem("token");
@@ -194,37 +193,9 @@ export default function ChartListPage() {
   if (!token) return null;
 
   return (
-    <div className="h-screen flex flex-col bg-[#080808] overflow-hidden">
+    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
       {/* Topbar */}
-      <div className="flex items-center justify-between px-5 h-12 bg-[#0c0c0c] border-b border-[#1a1a1a] flex-shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-[#1a1a1a] border border-[#2e2e2e] flex items-center justify-center">
-            <Database className="w-3.5 h-3.5 text-[#7c8cf8]" />
-          </div>
-          <span className="text-white text-[13px] font-semibold tracking-tight">MongoStudio</span>
-          <div className="w-px h-4 bg-[#252525] mx-1" />
-          <div className="flex items-center gap-1.5">
-            <BarChart2 className="w-3.5 h-3.5 text-[#7c8cf8]" />
-            <span className="text-[13px] font-medium text-[#7c8cf8]">Charts</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 bg-[#141414] border border-[#222] rounded-lg px-2.5 py-1.5">
-            <div className="w-5 h-5 rounded-full bg-[#7c8cf8] flex items-center justify-center text-[10px] font-bold text-white uppercase flex-shrink-0">
-              {userEmail.charAt(0) || "?"}
-            </div>
-            <span className="text-[#666] text-[11px] max-w-[140px] truncate leading-none">{userEmail}</span>
-          </div>
-          <Link
-            href="/"
-            className="flex items-center gap-1.5 text-[#555] hover:text-white px-2.5 py-1.5 rounded-lg hover:bg-[#1a1a1a] border border-transparent hover:border-[#252525] text-[12px] transition-all"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Back
-          </Link>
-        </div>
-      </div>
+      <NavBarMenu />
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
@@ -233,8 +204,8 @@ export default function ChartListPage() {
           {/* Page header */}
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-[20px] font-semibold text-white">Chart Builder</h1>
-              <p className="text-[12px] text-[#444] mt-0.5">
+              <h1 className="text-[20px] font-semibold text-gray-900">Chart Builder</h1>
+              <p className="text-[12px] text-gray-400 mt-0.5">
                 {charts.length} chart{charts.length !== 1 ? "s" : ""} in your workspace
               </p>
             </div>
@@ -250,12 +221,12 @@ export default function ChartListPage() {
           {/* Search */}
           {charts.length > 0 && (
             <div className="relative mb-5">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#444]" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search charts…"
-                className="w-full bg-[#0f0f0f] border border-[#1f1f1f] rounded-lg pl-9 pr-4 py-2 text-[13px] text-white placeholder-[#333] outline-none focus:border-[#7c8cf8] transition-colors"
+                className="w-full bg-white border border-gray-200 rounded-lg pl-9 pr-4 py-2 text-[13px] text-gray-900 placeholder-gray-400 outline-none focus:border-[#7c8cf8] transition-colors"
               />
             </div>
           )}
@@ -263,19 +234,19 @@ export default function ChartListPage() {
           {/* Loading */}
           {loading && (
             <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-5 h-5 text-[#333] animate-spin" />
+              <Loader2 className="w-5 h-5 text-gray-300 animate-spin" />
             </div>
           )}
 
           {/* Empty */}
           {!loading && charts.length === 0 && (
             <div className="flex flex-col items-center justify-center py-24 gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-[#111] border border-[#1f1f1f] flex items-center justify-center">
-                <LayoutGrid className="w-7 h-7 text-[#333]" />
+              <div className="w-16 h-16 rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center">
+                <LayoutGrid className="w-7 h-7 text-gray-300" />
               </div>
               <div className="text-center">
-                <p className="text-[14px] font-medium text-[#444]">No charts yet</p>
-                <p className="text-[12px] text-[#2f2f2f] mt-1">Create your first chart to get started</p>
+                <p className="text-[14px] font-medium text-gray-500">No charts yet</p>
+                <p className="text-[12px] text-gray-400 mt-1">Create your first chart to get started</p>
               </div>
               <button
                 onClick={() => setShowCreate(true)}
@@ -294,26 +265,26 @@ export default function ChartListPage() {
                 <Link
                   key={chart._id}
                   href={`/chart/${chart._id}`}
-                  className="group relative bg-[#0f0f0f] border border-[#1a1a1a] hover:border-[#7c8cf844] rounded-xl p-4 transition-all hover:bg-[#111] block"
+                  className="group relative bg-white border border-gray-200 hover:border-[#7c8cf8]/40 rounded-xl p-4 transition-all hover:bg-gray-50 hover:shadow-sm block"
                 >
                   {/* Icon + title */}
                   <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-[#7c8cf811] border border-[#7c8cf822] flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <div className="w-9 h-9 rounded-lg bg-[#7c8cf8]/10 border border-[#7c8cf8]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
                       <BarChart2 className="w-4 h-4 text-[#7c8cf8]" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-semibold text-white truncate group-hover:text-[#7c8cf8] transition-colors">
+                      <p className="text-[13px] font-semibold text-gray-900 truncate group-hover:text-[#7c8cf8] transition-colors">
                         {chart.name}
                       </p>
-                      <p className="text-[11px] text-[#3a3a3a] mt-0.5 line-clamp-2 leading-4">
+                      <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-2 leading-4">
                         {chart.description || "No description"}
                       </p>
                     </div>
                   </div>
 
                   {/* Footer */}
-                  <div className="flex items-center justify-between mt-4 pt-3 border-t border-[#161616]">
-                    <div className="flex items-center gap-1.5 text-[10px] text-[#3a3a3a]">
+                  <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
+                    <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
                       <Clock className="w-3 h-3" />
                       {timeAgo(chart.updatedAt)}
                     </div>
@@ -321,14 +292,14 @@ export default function ChartListPage() {
                       <button
                         onClick={(e) => handleDelete(chart._id, e)}
                         disabled={deleting === chart._id}
-                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-red-500/10 text-[#444] hover:text-red-400 transition-all cursor-pointer"
+                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all cursor-pointer"
                       >
                         {deleting === chart._id
                           ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           : <Trash2 className="w-3.5 h-3.5" />
                         }
                       </button>
-                      <ChevronRight className="w-3.5 h-3.5 text-[#333] group-hover:text-[#7c8cf8] transition-colors" />
+                      <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-[#7c8cf8] transition-colors" />
                     </div>
                   </div>
                 </Link>
@@ -339,7 +310,7 @@ export default function ChartListPage() {
           {/* No search results */}
           {!loading && charts.length > 0 && filtered.length === 0 && (
             <div className="text-center py-16">
-              <p className="text-[13px] text-[#444]">No charts match &ldquo;{search}&rdquo;</p>
+              <p className="text-[13px] text-gray-400">No charts match &ldquo;{search}&rdquo;</p>
             </div>
           )}
         </div>

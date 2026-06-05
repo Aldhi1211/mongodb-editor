@@ -12,13 +12,11 @@ import { jwtDecode } from "jwt-decode";
 export default function Home() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
-  const [userEmail, setUserEmail] = useState<string>("");
   const [roomId, setRoomId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string>("viewer");
   const [collection, setCollection] = useState<string | null>(null);
   const [tab, setTab] = useState<"data" | "audit">("data");
   const [tabLoading, setTabLoading] = useState(true);
-  const [draftCount, setDraftCount] = useState(0);
 
   // Guard: don't let save effects overwrite sessionStorage before restore has run
   const navRestored = useRef(false);
@@ -36,16 +34,6 @@ export default function Home() {
     else sessionStorage.removeItem("nav:collection");
   }, [collection]);
 
-  // Track draft count for topbar badge
-  useEffect(() => {
-    const count = () =>
-      Object.keys(localStorage).filter((k) => k.startsWith("mongoedit:draft:")).length;
-    setDraftCount(count());
-    const update = () => setDraftCount(count());
-    window.addEventListener("mongoedit:saved", update);
-    return () => window.removeEventListener("mongoedit:saved", update);
-  }, []);
-
   useEffect(() => {
     const t = localStorage.getItem("token");
     if (!t) { router.replace("/login"); return; }
@@ -56,7 +44,9 @@ export default function Home() {
         router.replace("/login");
       } else {
         setToken(t);
-        setUserEmail((decoded as any).email || "");
+        // Open straight to the requested view when navigated from another page (?view=audit)
+        const view = new URLSearchParams(window.location.search).get("view");
+        if (view === "audit" || view === "data") setTab(view);
         // Restore last-visited room + collection (handles navigate-back from /edit).
         // userRole is NOT stored here — RoomList.onRoleResolved derives it from
         // live room data once rooms finish loading, avoiding stale cached values.
@@ -85,24 +75,10 @@ export default function Home() {
 
   if (!token) return null;
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    setToken(null);
-    setRoomId(null);
-    setCollection(null);
-    router.replace("/login");
-  };
-
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden">
       {/* Topbar */}
-      <NavBarMenu
-        tab={tab}
-        onTabChange={handleTabChange}
-        draftCount={draftCount}
-        userEmail={userEmail}
-        onLogout={handleLogout}
-      />
+      <NavBarMenu view={tab} onViewChange={handleTabChange} />
 
       {/* Main */}
       <div className="flex flex-1 overflow-hidden relative">
