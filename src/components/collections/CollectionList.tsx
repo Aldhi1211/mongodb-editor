@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { RefreshCcw, AlertTriangle, Loader2 } from 'lucide-react'
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
+import { RefreshCcw, AlertTriangle, Loader2, Plus, Database, Search } from 'lucide-react'
 import ConfirmDialog from "@/components/ui/ConfirmDialog"
+import Breadcrumb from "@/components/Breadcrumb"
 import CollectionContextMenu from "./CollectionContextMenu"
 
 type Collection = {
@@ -13,10 +13,13 @@ type Collection = {
 
 type Props = {
     roomId: string
+    roomName?: string
     onSelect: (name: string) => void
     activeCollection: string | null
     userRole?: string
 }
+
+const PAGE_SIZE = 50
 
 function friendlyError(raw: string): string {
     if (raw.includes('wire version') || raw.includes('4.2') || raw.includes('3.6'))
@@ -41,15 +44,7 @@ async function fetchCollections(roomId: string): Promise<{ data: Collection[]; e
 
 // ── Inline input dialog ────────────────────────────────────────────────────
 function InputDialog({
-    title,
-    label,
-    defaultValue = '',
-    placeholder,
-    confirmLabel,
-    loading,
-    error,
-    onConfirm,
-    onClose,
+    title, label, defaultValue = '', placeholder, confirmLabel, loading, error, onConfirm, onClose,
 }: {
     title: string
     label: string
@@ -62,7 +57,6 @@ function InputDialog({
     onClose: () => void
 }) {
     const [value, setValue] = useState(defaultValue)
-
     useEffect(() => { setValue(defaultValue) }, [defaultValue])
 
     return (
@@ -103,10 +97,11 @@ function InputDialog({
     )
 }
 
-// ── Main component ──────────────────────────────────────────────────────────
-export default function CollectionList({ roomId, onSelect, activeCollection, userRole = "viewer" }: Props) {
+// ── Main component (full-page) ───────────────────────────────────────────────
+export default function CollectionList({ roomId, roomName, onSelect, activeCollection, userRole = "viewer" }: Props) {
     const [collections, setCollections] = useState<Collection[]>([])
     const [search, setSearch] = useState('')
+    const [page, setPage] = useState(1)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
@@ -118,17 +113,13 @@ export default function CollectionList({ roomId, onSelect, activeCollection, use
     const [deleteCol, setDeleteCol] = useState<string | null>(null)
     const [deleting, setDeleting] = useState(false)
 
-    // add dialog
+    // add / rename / clone dialogs
     const [showAdd, setShowAdd] = useState(false)
     const [addLoading, setAddLoading] = useState(false)
     const [addError, setAddError] = useState('')
-
-    // rename dialog
     const [renameCol, setRenameCol] = useState<string | null>(null)
     const [renameLoading, setRenameLoading] = useState(false)
     const [renameError, setRenameError] = useState('')
-
-    // clone dialog
     const [cloneCol, setCloneCol] = useState<string | null>(null)
     const [cloneLoading, setCloneLoading] = useState(false)
     const [cloneError, setCloneError] = useState('')
@@ -161,7 +152,6 @@ export default function CollectionList({ roomId, onSelect, activeCollection, use
         }
 
         setDraftSet(scan())
-
         const update = () => setDraftSet(scan())
         window.addEventListener('mongoedit:saved', update)
         return () => window.removeEventListener('mongoedit:saved', update)
@@ -271,166 +261,229 @@ export default function CollectionList({ roomId, onSelect, activeCollection, use
             .sort((a, b) => a.name.localeCompare(b.name))
     }, [collections, search])
 
+    // reset to first page whenever the result set changes
+    useEffect(() => { setPage(1) }, [search, collections])
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+    const safePage = Math.min(page, totalPages)
+    const start = (safePage - 1) * PAGE_SIZE
+    const pageItems = filtered.slice(start, start + PAGE_SIZE)
+
     return (
-        <>
-        <div className="w-[210px] flex-shrink-0 flex flex-col border-r border-gray-200 bg-white overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between px-3.5 h-[41px] border-b border-gray-200 flex-shrink-0">
-                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-[0.05em]">Collections</span>
-                <button onClick={loadCollections} disabled={loading} className="text-gray-400 hover:text-gray-600 cursor-pointer">
-                    <RefreshCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                </button>
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden bg-white">
+            {/* Sub-toolbar: breadcrumb (cluster) + count + refresh */}
+            <Breadcrumb
+                cluster={roomName || "Cluster"}
+                right={
+                    <>
+                        <span className="font-mono text-[12px] text-neutral-400">
+                            {filtered.length} collection{filtered.length !== 1 ? "s" : ""}
+                        </span>
+                        <button
+                            onClick={loadCollections}
+                            disabled={loading}
+                            title="Refresh"
+                            className="w-7 h-7 grid place-items-center rounded-md text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 cursor-pointer"
+                        >
+                            <RefreshCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                        </button>
+                    </>
+                }
+            />
+
+            {/* Toolbar: search + new */}
+            <div className="flex items-center gap-2 px-4 sm:px-5 lg:px-6 py-2.5 border-b border-gray-200 flex-shrink-0">
+                <div className="relative flex-1 max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                    <input
+                        placeholder="Search collection…"
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 text-[13px] text-gray-700 outline-none focus:border-gray-400"
+                    />
+                </div>
+                {userRole !== "viewer" && (
+                    <button
+                        onClick={() => { setAddError(''); setShowAdd(true) }}
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[12px] font-medium bg-[#111] hover:bg-[#333] text-white cursor-pointer flex-shrink-0"
+                    >
+                        <Plus className="w-3.5 h-3.5" />
+                        New collection
+                    </button>
+                )}
             </div>
 
-            {/* Search */}
-            <div className="px-2.5 py-2 border-b border-gray-200 flex-shrink-0">
-                <input
-                    placeholder="Search collection..."
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    className="w-full px-2 py-1 rounded-md border border-gray-200 bg-gray-50 text-[12px] text-gray-700 outline-none focus:border-gray-400"
-                />
-            </div>
-
-            {/* List */}
+            {/* Body */}
             <div className="flex-1 overflow-y-auto">
                 {loading && (
-                    <div className="flex items-center justify-center py-8">
-                        <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                    <div className="flex items-center justify-center py-16">
+                        <Loader2 className="w-5 h-5 text-gray-300 animate-spin" />
                     </div>
                 )}
 
                 {!loading && error && (
-                    <div className="mx-2.5 mt-3 p-2.5 rounded-lg bg-red-50 border border-red-100">
+                    <div className="mx-auto mt-6 max-w-md p-3 rounded-lg bg-red-50 border border-red-100">
                         <div className="flex items-start gap-2">
-                            <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-0.5" />
-                            <p className="text-[11px] text-red-500 leading-snug">{error}</p>
+                            <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                            <p className="text-[12px] text-red-500 leading-snug">{error}</p>
                         </div>
-                        <button onClick={loadCollections} className="mt-2 w-full text-[10px] text-red-500 hover:text-red-700 bg-red-100 hover:bg-red-200 rounded px-2 py-1 cursor-pointer transition-colors">
+                        <button onClick={loadCollections} className="mt-2 w-full text-[11px] text-red-500 hover:text-red-700 bg-red-100 hover:bg-red-200 rounded px-2 py-1 cursor-pointer transition-colors">
                             Retry
                         </button>
                     </div>
                 )}
 
-                {!loading && !error && filtered.map(col => {
-                    const active = col.name === activeCollection
-                    return (
-                        <div
-                            key={col.name}
-                            className={`flex items-center px-3 py-2 border-b border-gray-100 cursor-pointer select-none transition-colors
-                                ${active ? 'bg-[#111]' : menuCol === col.name && menuPos ? 'bg-blue-50 ring-1 ring-inset ring-blue-200' : 'hover:bg-gray-50'}`}
-                            onClick={() => onSelect(col.name)}
-                            onContextMenu={e => {
-                                e.preventDefault()
-                                setMenuCol(col.name)
-                                setMenuPos({ x: e.clientX, y: e.clientY })
-                            }}
-                        >
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <span className={`text-[12px] font-mono truncate flex-1 ${active ? 'text-white' : 'text-gray-800'}`}>
+                {!loading && !error && (
+                    <div className="divide-y divide-gray-100">
+                        {pageItems.map(col => {
+                            const active = col.name === activeCollection
+                            return (
+                                <div
+                                    key={col.name}
+                                    className={`group flex items-center gap-3 px-4 sm:px-5 lg:px-6 py-3 cursor-pointer select-none transition-colors
+                                        ${active ? 'bg-[#111]' : menuCol === col.name && menuPos ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                                    onClick={() => onSelect(col.name)}
+                                    onContextMenu={e => {
+                                        e.preventDefault()
+                                        setMenuCol(col.name)
+                                        setMenuPos({ x: e.clientX, y: e.clientY })
+                                    }}
+                                >
+                                    <div className={`w-8 h-8 rounded-lg grid place-items-center flex-shrink-0 ${active ? 'bg-white/10' : 'bg-gray-100 border border-gray-200'}`}>
+                                        <Database className={`w-4 h-4 ${active ? 'text-white' : 'text-gray-400'}`} />
+                                    </div>
+                                    <span className={`text-[13px] font-mono truncate flex-1 ${active ? 'text-white' : 'text-gray-800'}`}>
                                         {col.name}
                                     </span>
-                                </TooltipTrigger>
-                                <TooltipContent side="right" className="font-mono text-[11px]">
-                                    {col.name}
-                                </TooltipContent>
-                            </Tooltip>
-                            {draftSet.has(col.name) && (
-                                <span
-                                    className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0"
-                                    title="Ada draft tersimpan"
-                                />
-                            )}
-                        </div>
-                    )
-                })}
+                                    {draftSet.has(col.name) && (
+                                        <span
+                                            className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0"
+                                            title="Ada draft tersimpan"
+                                        />
+                                    )}
+                                </div>
+                            )
+                        })}
 
-                {!loading && !error && filtered.length === 0 && collections.length > 0 && (
-                    <p className="text-[11px] text-gray-400 text-center py-6">No match</p>
+                        {filtered.length === 0 && collections.length > 0 && (
+                            <p className="text-[12px] text-gray-400 text-center py-12">No collection matches “{search}”</p>
+                        )}
+                        {collections.filter(c => c.type === 'collection').length === 0 && (
+                            <div className="flex flex-col items-center justify-center py-20 gap-3">
+                                <div className="w-14 h-14 rounded-2xl bg-gray-100 border border-gray-200 grid place-items-center">
+                                    <Database className="w-6 h-6 text-gray-300" />
+                                </div>
+                                <p className="text-[13px] text-gray-500">No collections in this cluster</p>
+                            </div>
+                        )}
+                    </div>
                 )}
             </div>
+
+            {/* Pagination */}
+            {filtered.length > PAGE_SIZE && (
+                <div className="flex items-center justify-between px-4 sm:px-5 lg:px-6 py-2 border-t border-gray-200 flex-shrink-0">
+                    <span className="text-[11px] text-gray-400">
+                        {start + 1}–{Math.min(start + PAGE_SIZE, filtered.length)} of {filtered.length}
+                    </span>
+                    <div className="flex gap-1">
+                        <button
+                            disabled={safePage <= 1}
+                            className="px-3 py-1 rounded-md border border-gray-200 text-[12px] text-gray-600 hover:bg-gray-50 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                        >
+                            ‹ Prev
+                        </button>
+                        <button
+                            disabled={safePage >= totalPages}
+                            className="px-3 py-1 rounded-md border border-gray-200 text-[12px] text-gray-600 hover:bg-gray-50 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                        >
+                            Next ›
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Context menu */}
+            <CollectionContextMenu
+                pos={menuPos}
+                collectionName={menuCol}
+                userRole={userRole}
+                onDelete={() => setDeleteCol(menuCol)}
+                onRefresh={loadCollections}
+                onClose={() => { setMenuPos(null); setMenuCol('') }}
+                onAdd={() => { setAddError(''); setShowAdd(true) }}
+                onRename={() => { setRenameError(''); setRenameCol(menuCol) }}
+                onClone={() => { setCloneError(''); setCloneCol(menuCol) }}
+            />
+
+            {/* Delete confirm */}
+            <ConfirmDialog
+                open={!!deleteCol}
+                onClose={() => setDeleteCol(null)}
+                title="Hapus Collection"
+                message={`Yakin ingin menghapus collection "${deleteCol}"? Tindakan ini tidak dapat dibatalkan.`}
+                confirmLabel="Hapus"
+                loading={deleting}
+                onConfirm={async () => {
+                    if (!deleteCol) return
+                    setDeleting(true)
+                    try {
+                        await fetch(`/api/rooms/${roomId}/collections/${encodeURIComponent(deleteCol)}`, {
+                            method: 'DELETE', headers: { Authorization: `Bearer ${token()}` }
+                        })
+                        setDeleteCol(null)
+                        await loadCollections()
+                    } finally {
+                        setDeleting(false)
+                    }
+                }}
+            />
+
+            {/* Add dialog */}
+            {showAdd && (
+                <InputDialog
+                    title="Add Collection"
+                    label="Collection name"
+                    placeholder="e.g. users"
+                    confirmLabel="Create"
+                    loading={addLoading}
+                    error={addError}
+                    onConfirm={handleAdd}
+                    onClose={() => { setShowAdd(false); setAddError('') }}
+                />
+            )}
+
+            {/* Rename dialog */}
+            {renameCol && (
+                <InputDialog
+                    title="Edit Collection Name"
+                    label="New name"
+                    defaultValue={renameCol}
+                    placeholder="New collection name"
+                    confirmLabel="Rename"
+                    loading={renameLoading}
+                    error={renameError}
+                    onConfirm={handleRename}
+                    onClose={() => { setRenameCol(null); setRenameError('') }}
+                />
+            )}
+
+            {/* Clone dialog */}
+            {cloneCol && (
+                <InputDialog
+                    title={`Clone "${cloneCol}"`}
+                    label="Clone name"
+                    defaultValue={`${cloneCol}_copy`}
+                    placeholder="Target collection name"
+                    confirmLabel="Clone"
+                    loading={cloneLoading}
+                    error={cloneError}
+                    onConfirm={handleClone}
+                    onClose={() => { setCloneCol(null); setCloneError('') }}
+                />
+            )}
         </div>
-
-        {/* Context menu */}
-        <CollectionContextMenu
-            pos={menuPos}
-            collectionName={menuCol}
-            userRole={userRole}
-            onDelete={() => setDeleteCol(menuCol)}
-            onRefresh={loadCollections}
-            onClose={() => { setMenuPos(null); setMenuCol('') }}
-            onAdd={() => { setAddError(''); setShowAdd(true) }}
-            onRename={() => { setRenameError(''); setRenameCol(menuCol) }}
-            onClone={() => { setCloneError(''); setCloneCol(menuCol) }}
-        />
-
-        {/* Delete confirm */}
-        <ConfirmDialog
-            open={!!deleteCol}
-            onClose={() => setDeleteCol(null)}
-            title="Hapus Collection"
-            message={`Yakin ingin menghapus collection "${deleteCol}"? Tindakan ini tidak dapat dibatalkan.`}
-            confirmLabel="Hapus"
-            loading={deleting}
-            onConfirm={async () => {
-                if (!deleteCol) return
-                setDeleting(true)
-                try {
-                    await fetch(`/api/rooms/${roomId}/collections/${encodeURIComponent(deleteCol)}`, {
-                        method: 'DELETE', headers: { Authorization: `Bearer ${token()}` }
-                    })
-                    setDeleteCol(null)
-                    await loadCollections()
-                } finally {
-                    setDeleting(false)
-                }
-            }}
-        />
-
-        {/* Add dialog */}
-        {showAdd && (
-            <InputDialog
-                title="Add Collection"
-                label="Collection name"
-                placeholder="e.g. users"
-                confirmLabel="Create"
-                loading={addLoading}
-                error={addError}
-                onConfirm={handleAdd}
-                onClose={() => { setShowAdd(false); setAddError('') }}
-            />
-        )}
-
-        {/* Rename dialog */}
-        {renameCol && (
-            <InputDialog
-                title="Edit Collection Name"
-                label="New name"
-                defaultValue={renameCol}
-                placeholder="New collection name"
-                confirmLabel="Rename"
-                loading={renameLoading}
-                error={renameError}
-                onConfirm={handleRename}
-                onClose={() => { setRenameCol(null); setRenameError('') }}
-            />
-        )}
-
-        {/* Clone dialog */}
-        {cloneCol && (
-            <InputDialog
-                title={`Clone "${cloneCol}"`}
-                label="Clone name"
-                defaultValue={`${cloneCol}_copy`}
-                placeholder="Target collection name"
-                confirmLabel="Clone"
-                loading={cloneLoading}
-                error={cloneError}
-                onConfirm={handleClone}
-                onClose={() => { setCloneCol(null); setCloneError('') }}
-            />
-        )}
-        </>
     )
 }

@@ -6,7 +6,7 @@ export function useDocuments(roomId: string, collection: string) {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [isFetching, setIsFetching] = useState(false);
-  const limit = 20;
+  const limit = 50;
   const token = () => localStorage.getItem("token");
 
   // Refs so the mongoedit:saved event handler always has the latest values

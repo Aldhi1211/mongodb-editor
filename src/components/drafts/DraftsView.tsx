@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { NavBarMenu } from "@/components/navbar";
 import { ArrowRight, Clock, FilePen, FilePlus, FileText, Trash2 } from "lucide-react";
 
 const ADD_DRAFT_PREFIX = "mongoedit:draft:";
 const EDIT_DRAFT_PREFIX = "mongoedit:editdraft:";
 
-type Draft = {
+export type Draft = {
   key: string;
   type: "add" | "edit";
   roomId: string;
@@ -63,8 +61,8 @@ function formatAbsoluteTime(iso: string): string {
   });
 }
 
-export default function DraftsClient() {
-  const router = useRouter();
+/** Inline drafts list for the home SPA. "Continue" opens the inline editor via onContinue. */
+export default function DraftsView({ onContinue }: { onContinue: (draft: Draft) => void }) {
   const [drafts, setDrafts] = useState<Draft[]>([]);
 
   const loadDrafts = () => {
@@ -108,22 +106,9 @@ export default function DraftsClient() {
   const handleDelete = (key: string) => { localStorage.removeItem(key); loadDrafts(); };
   const handleDeleteAll = () => { drafts.forEach(d => localStorage.removeItem(d.key)); loadDrafts(); };
 
-  const handleContinue = (draft: Draft) => {
-    if (draft.type === "add") {
-      router.push(`/edit?roomId=${draft.roomId}&collection=${encodeURIComponent(draft.collection)}&mode=new`);
-    } else {
-      router.push(`/edit?roomId=${draft.roomId}&collection=${encodeURIComponent(draft.collection)}&docId=${draft.docId}`);
-    }
-  };
-
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 text-gray-900">
-      {/* ── Navbar ── */}
-      <NavBarMenu />
-
-      {/* ── Content ── */}
+    <div className="flex-1 overflow-y-auto bg-gray-50 text-gray-900">
       <div className="max-w-2xl w-full mx-auto px-4 py-8">
-        {/* Page sub-header */}
         <div className="flex items-center gap-2 mb-5">
           <FileText className="w-4 h-4 text-gray-400" />
           <h1 className="text-[15px] font-semibold text-gray-900">Drafts</h1>
@@ -162,7 +147,6 @@ export default function DraftsClient() {
                   key={draft.key}
                   className="group relative flex items-start gap-4 p-4 rounded-xl border transition-all bg-white border-gray-200 hover:border-gray-300"
                 >
-                  {/* Type icon */}
                   <div
                     className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${
                       isAdd
@@ -172,11 +156,9 @@ export default function DraftsClient() {
                   >
                     {isAdd
                       ? <FilePlus className="w-4 h-4 text-emerald-500" />
-                      : <FilePen className="w-4 h-4 text-blue-500" />
-                    }
+                      : <FilePen className="w-4 h-4 text-blue-500" />}
                   </div>
 
-                  {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1.5">
                       <span
@@ -209,17 +191,13 @@ export default function DraftsClient() {
                     {draft.savedAt && (
                       <div className="flex items-center gap-1 mt-2">
                         <Clock className="w-2.5 h-2.5 text-gray-400" />
-                        <span
-                          className="text-[10px] text-gray-400"
-                          title={formatAbsoluteTime(draft.savedAt)}
-                        >
+                        <span className="text-[10px] text-gray-400" title={formatAbsoluteTime(draft.savedAt)}>
                           {formatRelativeTime(draft.savedAt)}
                         </span>
                       </div>
                     )}
                   </div>
 
-                  {/* Actions — visible on hover */}
                   <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => handleDelete(draft.key)}
@@ -229,7 +207,7 @@ export default function DraftsClient() {
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={() => handleContinue(draft)}
+                      onClick={() => onContinue(draft)}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer transition-colors bg-gray-900 hover:bg-gray-700 text-white"
                     >
                       Continue

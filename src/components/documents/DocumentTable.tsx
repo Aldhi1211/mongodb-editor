@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   useReactTable,
   getCoreRowModel,
@@ -13,6 +12,7 @@ import { useDocuments } from "./useDocuments";
 import DocumentContextMenu from "./DocumentContextMenu";
 import JsonViewerModal from "./JsonViewerModal";
 import FilterBuilderModal, { FieldDef } from "./FilterBuilderModal";
+import Breadcrumb from "@/components/Breadcrumb";
 import { getEjsonIdString, toShellString } from "@/lib/ejsonShell";
 import { Loader2 } from "lucide-react";
 
@@ -21,10 +21,9 @@ type ParsedQuery =
   | { operation: "find"; filter: any; sort?: any }
   | { operation: WriteOp; filter: any; update?: any };
 
-export default function DocumentTable({ roomId, collection, userRole = "viewer" }: any) {
+export default function DocumentTable({ roomId, collection, userRole = "viewer", cluster, onEdit, onNew, onNavigateCluster }: any) {
   const canWrite = userRole !== "viewer";
   const canDelete = userRole === "owner" || userRole === "admin";
-  const router = useRouter();
   const {
     data,
     fetchData,
@@ -114,16 +113,9 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
     });
   }, [data]);
 
-  const openNew = () => {
-    router.push(`/edit?roomId=${roomId}&collection=${encodeURIComponent(collection)}&mode=new`);
-  };
+  const openNew = () => onNew?.();
 
-  const openEdit = (doc: any) => {
-    sessionStorage.setItem("edit_doc", EJSON.stringify(doc));
-    router.push(
-      `/edit?roomId=${roomId}&collection=${encodeURIComponent(collection)}&docId=${getEjsonIdString(doc._id)}`
-    );
-  };
+  const openEdit = (doc: any) => onEdit?.(doc);
 
   // Split "arg1, arg2" at the first top-level comma (handles nested objects/arrays)
   const splitTwoArgs = (inner: string): [string, string] | null => {
@@ -254,60 +246,63 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
 
   return (
     <div className="flex-1 min-w-0 flex flex-col overflow-hidden bg-white">
-      {/* Content Header — collection name + filter indicator + Filter button */}
-      <div className="px-4 py-2.5 border-b border-gray-200 flex-shrink-0 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="text-[15px] font-medium text-gray-900 truncate">{collection}</div>
-          {activeFilter && (
-            <span
-              title={JSON.stringify(EJSON.serialize(activeFilter, { relaxed: false }))}
-              className="flex items-center gap-1.5 pl-2 pr-1 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[11px] text-amber-700 font-medium whitespace-nowrap"
-            >
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-3 h-3"><path d="M2 3.5h12M4.5 8h7M6.5 12.5h3" /></svg>
-              Filtered
+      {/* Sub-toolbar: breadcrumb (cluster / collection) + actions + count + Filter */}
+      <Breadcrumb
+        cluster={cluster}
+        collection={collection}
+        onClusterClick={onNavigateCluster}
+        right={
+          <>
+            {canWrite && (
               <button
-                onClick={clearFilter}
-                aria-label="Clear filter"
-                className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full text-amber-600 hover:bg-amber-200 hover:text-amber-800 cursor-pointer"
+                className="px-3 py-1 rounded-md text-[12px] font-medium bg-[#111] text-white hover:bg-[#333] cursor-pointer"
+                onClick={openNew}
               >
-                ✕
+                New
               </button>
-            </span>
-          )}
-        </div>
-        <button
-          onClick={() => setFilterOpen(true)}
-          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-[12px] font-medium cursor-pointer flex-shrink-0 ${
-            activeFilter
-              ? "bg-amber-500 text-white hover:bg-amber-600"
-              : "bg-[#111] text-white hover:bg-[#333]"
-          }`}
-        >
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-3.5 h-3.5"><path d="M2 3.5h12M4.5 8h7M6.5 12.5h3" /></svg>
-          Filter
-        </button>
-      </div>
+            )}
+            <button
+              className="px-3 py-1 rounded-md text-[12px] text-gray-600 border border-gray-200 hover:bg-gray-50 cursor-pointer"
+              onClick={() => setIsJsonViewOpen(true)}
+            >
+              JSON
+            </button>
 
-      {/* View Tabs + doc count */}
-      <div className="flex items-center gap-1.5 px-4 py-2 border-b border-gray-200 flex-shrink-0">
-        {canWrite && (
-          <button
-            className="px-3.5 py-1 rounded-md text-[12px] font-medium bg-[#111] text-white cursor-pointer"
-            onClick={openNew}
-          >
-            New
-          </button>
-        )}
-        <button
-          className="px-3.5 py-1 rounded-md text-[12px] text-gray-600 border border-gray-200 hover:bg-gray-50 cursor-pointer"
-          onClick={() => setIsJsonViewOpen(true)}
-        >
-          JSON
-        </button>
-        <span className="ml-auto text-[11px] text-gray-400">
-          {total > 0 ? `${startRow}–${endRow} of ${total} documents` : `${total} documents`}
-        </span>
-      </div>
+            {activeFilter && (
+              <span
+                title={JSON.stringify(EJSON.serialize(activeFilter, { relaxed: false }))}
+                className="flex items-center gap-1.5 pl-2 pr-1 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[11px] text-amber-700 font-medium whitespace-nowrap"
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-3 h-3"><path d="M2 3.5h12M4.5 8h7M6.5 12.5h3" /></svg>
+                Filtered
+                <button
+                  onClick={clearFilter}
+                  aria-label="Clear filter"
+                  className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full text-amber-600 hover:bg-amber-200 hover:text-amber-800 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+
+            <span className="font-mono text-[12px] text-neutral-400 whitespace-nowrap">
+              {total > 0 ? `${startRow}–${endRow} of ${total} documents` : `${total} documents`}
+            </span>
+
+            <button
+              onClick={() => setFilterOpen(true)}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[12px] font-medium cursor-pointer flex-shrink-0 ${
+                activeFilter
+                  ? "bg-amber-500 text-white hover:bg-amber-600"
+                  : "bg-[#111] text-white hover:bg-[#333]"
+              }`}
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-3.5 h-3.5"><path d="M2 3.5h12M4.5 8h7M6.5 12.5h3" /></svg>
+              Filter
+            </button>
+          </>
+        }
+      />
 
       {/* Table */}
       <div className="flex-1 overflow-auto min-h-0 relative">
