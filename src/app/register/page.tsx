@@ -27,6 +27,10 @@ export default function RegisterPage() {
 
   const emailInvalid = email.length > 0 && !EMAIL_RE.test(email);
 
+  const oauthSignIn = (provider: "google" | "github") => {
+    window.location.href = `/api/auth/oauth/${provider}`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
@@ -97,12 +101,12 @@ export default function RegisterPage() {
       <form onSubmit={handleSubmit} noValidate className="space-y-5">
         {/* OAuth */}
         <div className="space-y-3">
-          <button type="button" className={s.btnOauth}>
+          <button type="button" className={s.btnOauth} onClick={() => oauthSignIn("github")}>
             <GitHubIcon />
             Continue with GitHub
           </button>
 
-          <button type="button" className={s.btnOauth}>
+          <button type="button" className={s.btnOauth} onClick={() => oauthSignIn("google")}>
             <GoogleIcon />
             Continue with Google
           </button>

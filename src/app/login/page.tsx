@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AuthShell from "@/components/auth/AuthShell";
@@ -15,6 +15,17 @@ import s from "@/components/auth/montra.module.css";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const OAUTH_ERRORS: Record<string, string> = {
+  oauth: "Sign-in was interrupted. Please try again.",
+  oauth_denied: "Sign-in was cancelled.",
+  oauth_state: "Sign-in session expired. Please try again.",
+  oauth_token: "Could not complete sign-in with the provider.",
+  oauth_no_email: "No verified email was returned by the provider.",
+  oauth_not_configured: "Social sign-in is not configured yet.",
+  oauth_unknown_provider: "Unknown sign-in provider.",
+  oauth_failed: "Sign-in failed. Please try again.",
+};
+
 export default function LoginPage() {
   const router = useRouter();
 
@@ -26,6 +37,19 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   const emailInvalid = email.length > 0 && !EMAIL_RE.test(email);
+
+  // Surface OAuth errors passed back via ?error= from the callback routes.
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("error");
+    if (code && OAUTH_ERRORS[code]) {
+      setError(OAUTH_ERRORS[code]);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  const oauthSignIn = (provider: "google" | "github") => {
+    window.location.href = `/api/auth/oauth/${provider}`;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,12 +94,12 @@ export default function LoginPage() {
       <form onSubmit={handleSubmit} noValidate className="space-y-5">
         {/* OAuth */}
         <div className="space-y-3">
-          <button type="button" className={s.btnOauth}>
+          <button type="button" className={s.btnOauth} onClick={() => oauthSignIn("github")}>
             <GitHubIcon />
             Continue with GitHub
           </button>
 
-          <button type="button" className={s.btnOauth}>
+          <button type="button" className={s.btnOauth} onClick={() => oauthSignIn("google")}>
             <GoogleIcon />
             Continue with Google
           </button>
