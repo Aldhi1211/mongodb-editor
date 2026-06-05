@@ -133,7 +133,8 @@ export function NavBarMenu({
 
     const activeRoom = rooms.find((r) => r._id === activeRoomId)
     const avatarLetter = (userEmail.charAt(0) || "?").toUpperCase()
-    const filteredClusters = rooms.filter((r) =>
+    const sortedRooms = [...rooms].sort((a, b) => a.name.localeCompare(b.name))
+    const filteredClusters = sortedRooms.filter((r) =>
         r.name.toLowerCase().includes(clusterSearch.toLowerCase()),
     )
 
@@ -164,7 +165,7 @@ export function NavBarMenu({
                                     {rooms.length > 0 && (
                                         <div className="space-y-1">
                                             <p className="px-1 pb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-400">Cluster</p>
-                                            {rooms.map((room) => (
+                                            {sortedRooms.map((room) => (
                                                 <SheetClose asChild key={room._id}>
                                                     <button
                                                         onClick={() => onSelectRoom?.(room._id)}
