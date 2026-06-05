@@ -12,12 +12,10 @@ import { EJSON } from "bson";
 import { useDocuments } from "./useDocuments";
 import DocumentContextMenu from "./DocumentContextMenu";
 import JsonViewerModal from "./JsonViewerModal";
+import FilterBuilderModal, { FieldDef } from "./FilterBuilderModal";
 import { getEjsonIdString, toShellString } from "@/lib/ejsonShell";
 import { Loader2 } from "lucide-react";
 
-type Operator = "is" | "regex" | "gt" | "lt";
-type Filter = { key: string; operator: Operator; value: string };
-type QueryMode = "filter" | "query";
 type WriteOp = "deleteOne" | "deleteMany" | "updateOne" | "updateMany";
 type ParsedQuery =
   | { operation: "find"; filter: any; sort?: any }
@@ -25,6 +23,7 @@ type ParsedQuery =
 
 export default function DocumentTable({ roomId, collection, userRole = "viewer" }: any) {
   const canWrite = userRole !== "viewer";
+  const canDelete = userRole === "owner" || userRole === "admin";
   const router = useRouter();
   const {
     data,
@@ -42,13 +41,7 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
   const [viewDoc, setViewDoc] = useState<any>(null);
   const [contextRow, setContextRow] = useState<any>(null);
   const [menuPos, setMenuPos] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState<Filter[]>([{ key: "", operator: "is", value: "" }]);
-  const [filterMode, setFilterMode] = useState<"and" | "or">("and");
-  const [queryMode, setQueryMode] = useState<QueryMode>("filter");
-  const [rawQuery, setRawQuery] = useState("");
-  const [rawSort, setRawSort] = useState("");
-  const [queryError, setQueryError] = useState<string | null>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [pendingBulkOp, setPendingBulkOp] = useState<ParsedQuery | null>(null);
   const [bulkResult, setBulkResult] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<any>(null);
@@ -99,6 +92,27 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
 
   const table = useReactTable({ data, columns, getCoreRowModel: getCoreRowModel() });
 
+  // Derive a field list (name + inferred type) from the loaded documents for the filter builder.
+  const fields = useMemo<FieldDef[]>(() => {
+    const sample = data[0];
+    if (!sample) return [];
+    return Object.keys(sample).map((name) => {
+      const v = sample[name];
+      let type = "string";
+      if (name === "_id") type = "objectId";
+      else if (typeof v === "number") type = "number";
+      else if (typeof v === "boolean") type = "boolean";
+      else if (Array.isArray(v)) type = "array";
+      else if (v && typeof v === "object") {
+        if ("$oid" in v) type = "objectId";
+        else if ("$date" in v) type = "date";
+        else if ("$numberInt" in v || "$numberLong" in v || "$numberDouble" in v || "$numberDecimal" in v) type = "number";
+        else type = "object";
+      }
+      return { name, type };
+    });
+  }, [data]);
+
   const openNew = () => {
     router.push(`/edit?roomId=${roomId}&collection=${encodeURIComponent(collection)}&mode=new`);
   };
@@ -109,40 +123,6 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
       `/edit?roomId=${roomId}&collection=${encodeURIComponent(collection)}&docId=${getEjsonIdString(doc._id)}`
     );
   };
-
-  const updateFilter = <K extends keyof Filter>(index: number, field: K, value: Filter[K]) => {
-    const newFilters = [...filters];
-    newFilters[index][field] = value;
-    setFilters(newFilters);
-  };
-
-  const buildQuery = () => {
-    const conditions: any[] = [];
-    filters.forEach((f) => {
-      if (!f.key) return;
-      const value = isNaN(Number(f.value)) ? f.value : Number(f.value);
-      const isObjectIdLike = /^[0-9a-fA-F]{24}$/.test(f.value);
-      const cond: any = {};
-      switch (f.operator) {
-        case "is":
-          if (f.key === "_id" && isObjectIdLike) {
-            cond["$or"] = [{ _id: { $oid: f.value } }, { _id: f.value }];
-          } else {
-            cond[f.key] = value;
-          }
-          break;
-        case "regex": cond[f.key] = { $regex: f.value, $options: "i" }; break;
-        case "gt": cond[f.key] = { $gt: value }; break;
-        case "lt": cond[f.key] = { $lt: value }; break;
-      }
-      conditions.push(cond);
-    });
-    if (conditions.length === 0) return {};
-    if (conditions.length === 1 || filterMode === "and") return Object.assign({}, ...conditions);
-    return { $or: conditions };
-  };
-
-  const defaultQueryTemplate = () => `db.getCollection('${collection}').find({})`;
 
   // Split "arg1, arg2" at the first top-level comma (handles nested objects/arrays)
   const splitTwoArgs = (inner: string): [string, string] | null => {
@@ -214,36 +194,14 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
     return { operation: "find", filter, sort };
   };
 
-  const handleRunRawQuery = async () => {
-    setQueryError(null);
-    setBulkResult(null);
-    const trimmed = rawQuery.trim();
-    let parsed: ParsedQuery = { operation: "find", filter: {} };
-    if (trimmed) {
-      try {
-        parsed = parseQueryString(trimmed);
-      } catch (err: any) {
-        setQueryError(err.message);
-        return;
-      }
-    }
-    if (parsed.operation === "find") {
-      setLoading(true);
-      try {
-        await queryData(parsed.filter, 1, (parsed as any).sort);
-      } finally {
-        setLoading(false);
-      }
-    } else {
-      // Show confirmation dialog before executing write op
-      setPendingBulkOp(parsed);
-    }
+  // Called by the filter modal when it produces a find filter
+  const handleRunFind = async (filter: any, sort?: any) => {
+    await queryData(filter, 1, sort);
   };
 
   const executeBulkOp = async (op: ParsedQuery) => {
     if (op.operation === "find") return;
     setPendingBulkOp(null);
-    setLoading(true);
     try {
       const token = localStorage.getItem("token");
       const body: any = { operation: op.operation, filter: EJSON.serialize(op.filter, { relaxed: false }) };
@@ -260,7 +218,7 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
       );
       const json = await res.json();
       if (!res.ok) {
-        setQueryError(json.error || "Operation failed");
+        setBulkResult(`Error: ${json.error || "Operation failed"}`);
         return;
       }
       if (op.operation === "deleteOne" || op.operation === "deleteMany") {
@@ -269,188 +227,34 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
         setBulkResult(`Matched ${json.matchedCount}, modified ${json.modifiedCount} document${json.modifiedCount !== 1 ? "s" : ""}`);
       }
       await fetchData(1);
-    } finally {
-      setLoading(false);
+    } catch (err: any) {
+      setBulkResult(`Error: ${err?.message || "Operation failed"}`);
     }
   };
-
-  const handleResetQuery = async () => {
-    setRawQuery(defaultQueryTemplate());
-    setRawSort("");
-    setQueryError(null);
-    await fetchData(1);
-    setPage(1);
-  };
-
-  const inputCls = "px-2.5 py-1.5 rounded-md border border-gray-200 bg-gray-50 text-[12px] text-gray-600 font-mono outline-none focus:border-gray-400";
-  const selectCls = "px-2.5 py-1.5 rounded-md border border-gray-200 bg-gray-50 text-[12px] text-gray-800 outline-none focus:border-gray-400";
 
   const startRow = (page - 1) * limit + 1;
   const endRow = Math.min(page * limit, total);
 
   return (
     <div className="flex-1 min-w-0 flex flex-col overflow-hidden bg-white">
-      {/* Content Header */}
-      <div className="px-4 pt-3 pb-2.5 border-b border-gray-200 flex-shrink-0">
-        {/* Collection name + mode toggle */}
-        <div className="flex items-center justify-between mb-2.5">
-          <div className="text-[15px] font-medium text-gray-900">{collection}</div>
-          <div className="flex items-center gap-0.5 p-0.5 rounded-lg border border-gray-200 bg-gray-50">
-            <button
-              onClick={() => setQueryMode("filter")}
-              className={`px-3 py-0.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
-                queryMode === "filter"
-                  ? "bg-white text-gray-800 shadow-sm border border-gray-200"
-                  : "text-gray-400 hover:text-gray-600"
-              }`}
-            >
-              Filter
-            </button>
-            <button
-              onClick={() => {
-                setQueryMode("query");
-                if (!rawQuery) setRawQuery(defaultQueryTemplate());
-              }}
-              className={`px-3 py-0.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
-                queryMode === "query"
-                  ? "bg-white text-gray-800 shadow-sm border border-gray-200"
-                  : "text-gray-400 hover:text-gray-600"
-              }`}
-            >
-              Query
-            </button>
-          </div>
+      {/* Content Header — collection name + Filter button */}
+      <div className="px-4 py-2.5 border-b border-gray-200 flex-shrink-0 flex items-center justify-between">
+        <div className="text-[15px] font-medium text-gray-900">{collection}</div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setPage(1); fetchData(1); }}
+            className="px-3 py-1.5 rounded-md border border-gray-200 text-[12px] text-gray-500 hover:bg-gray-50 cursor-pointer"
+          >
+            Clear filter
+          </button>
+          <button
+            onClick={() => setFilterOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-[#111] text-white text-[12px] font-medium cursor-pointer hover:bg-[#333]"
+          >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-3.5 h-3.5"><path d="M2 3.5h12M4.5 8h7M6.5 12.5h3" /></svg>
+            Filter
+          </button>
         </div>
-
-        {/* ── Filter mode ── */}
-        {queryMode === "filter" && (
-          <div className="flex flex-col gap-1.5">
-            {filters.map((filter, index) => {
-              const isLast = index === filters.length - 1;
-              return (
-                <div key={index} className="flex flex-col gap-1.5">
-                  {index > 0 && (
-                    <div className="flex items-center gap-1.5 pl-0.5">
-                      <div className="h-px w-3 bg-gray-200" />
-                      <button
-                        onClick={() => setFilterMode(m => m === "and" ? "or" : "and")}
-                        className="text-[10px] font-bold px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-500 hover:border-gray-400 hover:text-gray-700 cursor-pointer tracking-wider transition-colors"
-                      >
-                        {filterMode.toUpperCase()}
-                      </button>
-                      <div className="h-px flex-1 bg-gray-200" />
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <input
-                      className={`${inputCls} flex-[2]`}
-                      placeholder="key"
-                      value={filter.key}
-                      onChange={(e) => updateFilter(index, "key", e.target.value)}
-                    />
-                    <select
-                      className={selectCls}
-                      value={filter.operator}
-                      onChange={(e) => updateFilter(index, "operator", e.target.value as Operator)}
-                    >
-                      <option value="is">IS</option>
-                      <option value="regex">REGEX</option>
-                      <option value="gt">GT</option>
-                      <option value="lt">LT</option>
-                    </select>
-                    <input
-                      className={`${inputCls} flex-[2]`}
-                      placeholder="value"
-                      value={filter.value}
-                      onChange={(e) => updateFilter(index, "value", e.target.value)}
-                    />
-                    {filters.length > 1 && (
-                      <button
-                        className="px-2 py-1.5 rounded-md border border-red-200 text-[12px] text-red-500 hover:bg-red-50 cursor-pointer"
-                        onClick={() => setFilters(filters.filter((_, i) => i !== index))}
-                      >
-                        ✕
-                      </button>
-                    )}
-                    {isLast && (
-                      <>
-                        <button
-                          className="px-3 py-1.5 rounded-md border border-gray-200 text-[12px] text-gray-600 hover:bg-gray-50 cursor-pointer whitespace-nowrap"
-                          onClick={() => setFilters([...filters, { key: "", operator: "is", value: "" }])}
-                        >
-                          + Add
-                        </button>
-                        <button
-                          disabled={loading}
-                          className="px-4 py-1.5 rounded-md bg-[#111] text-white text-[12px] font-medium cursor-pointer hover:bg-[#333] disabled:opacity-50 whitespace-nowrap"
-                          onClick={async () => {
-                            setLoading(true);
-                            try { await queryData(buildQuery(), 1); } finally { setLoading(false); }
-                          }}
-                        >
-                          {loading ? "Running…" : "Run"}
-                        </button>
-                        {(userRole === "owner" || userRole === "admin") && (
-                          <button
-                            disabled={loading}
-                            className="px-3 py-1.5 rounded-md border border-red-200 text-[12px] text-red-600 hover:bg-red-50 disabled:opacity-50 cursor-pointer whitespace-nowrap"
-                            onClick={() => setPendingBulkOp({ operation: "deleteMany", filter: buildQuery() })}
-                          >
-                            Delete All
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* ── Query mode ── */}
-        {queryMode === "query" && (
-          <div className="flex flex-col gap-2">
-            <textarea
-              rows={3}
-              spellCheck={false}
-              className="w-full px-3 py-2.5 rounded-md border border-gray-200 bg-gray-50 text-[12px] text-gray-700 font-mono outline-none focus:border-gray-400 resize-y leading-[1.6]"
-              value={rawQuery}
-              onChange={(e) => { setRawQuery(e.target.value); setQueryError(null); }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                  e.preventDefault();
-                  handleRunRawQuery();
-                }
-              }}
-            />
-
-            {/* Error */}
-            {queryError && (
-              <p className="text-[11px] text-red-500 font-mono bg-red-50 border border-red-100 rounded px-2.5 py-1.5">
-                {queryError}
-              </p>
-            )}
-
-            {/* Actions */}
-            <div className="flex items-center gap-2">
-              <button
-                disabled={loading}
-                onClick={handleRunRawQuery}
-                className="px-4 py-1.5 rounded-md bg-[#111] text-white text-[12px] font-medium cursor-pointer hover:bg-[#333] disabled:opacity-50 whitespace-nowrap"
-              >
-                {loading ? "Running…" : "Run"}
-              </button>
-              <button
-                onClick={handleResetQuery}
-                className="px-3 py-1.5 rounded-md border border-gray-200 text-[12px] text-gray-500 hover:bg-gray-50 cursor-pointer"
-              >
-                Reset
-              </button>
-              <span className="text-[10px] text-gray-400 ml-1">Ctrl+Enter to run · EJSON supported</span>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* View Tabs + doc count */}
@@ -564,6 +368,19 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
           </div>
         </div>
       )}
+
+      {/* Filter builder modal */}
+      <FilterBuilderModal
+        open={filterOpen}
+        collection={collection}
+        fields={fields}
+        count={total}
+        canDelete={canDelete}
+        parseQuery={parseQueryString}
+        onRunFind={handleRunFind}
+        onRequestWrite={(op) => setPendingBulkOp(op)}
+        onClose={() => setFilterOpen(false)}
+      />
 
       <DocumentContextMenu
         pos={menuPos}
