@@ -1,15 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { BarChart2, FileText, LogOut, MenuIcon } from "lucide-react"
+import { BarChart2, FileText, History, LogOut, MenuIcon, Table2 } from "lucide-react"
 
-import {
-    NavigationMenu,
-    NavigationMenuItem,
-    NavigationMenuLink,
-    NavigationMenuList,
-    navigationMenuTriggerStyle,
-} from "@/components/ui/navigation-menu"
 import {
     Sheet,
     SheetContent,
@@ -47,170 +40,144 @@ function BrandMark() {
     )
 }
 
-const TABS: { value: NavBarTab; label: string }[] = [
-    { value: "data", label: "Data" },
-    { value: "audit", label: "Audit Log" },
-]
+const ITEM_BASE =
+    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors"
+const ITEM_ACTIVE = "bg-neutral-900 text-white"
+const ITEM_IDLE = "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
+
+function DraftBadge({ count }: { count: number }) {
+    if (count <= 0) return null
+    return (
+        <span className="ml-0.5 text-[10px] bg-amber-500 text-white rounded-full px-1.5 py-px leading-none">
+            {count}
+        </span>
+    )
+}
 
 export function NavBarMenu({ tab, onTabChange, draftCount, userEmail, onLogout }: NavBarMenuProps) {
     return (
-        <header className="flex-shrink-0 px-3 pt-3">
-            {/* Desktop Navigation */}
-            <div className="hidden lg:flex items-center justify-between px-4 py-2 bg-gray-200/80 backdrop-blur shadow-2xs shadow-black rounded-2xl">
-                {/* Left — Brand + links */}
-                <div className="flex items-center gap-3">
-                    <Link href="/" className="flex items-center gap-2">
-                        <BrandMark />
-                        <span className="text-[15px] font-semibold tracking-tight text-neutral-900">Montra</span>
+        <header className="flex-shrink-0 bg-white border-b border-neutral-200">
+            <div className="flex items-center h-14 px-5 gap-4">
+                {/* Brand */}
+                <Link href="/" className="flex items-center gap-2">
+                    <BrandMark />
+                    <span className="text-[15px] font-semibold tracking-tight text-neutral-900">Montra</span>
+                </Link>
+
+                <div className="hidden lg:block w-px h-6 bg-neutral-200" />
+
+                {/* Desktop nav — Editor / Audit Log / Chart / Drafts in one row */}
+                <nav className="hidden lg:flex items-center gap-1">
+                    <button
+                        onClick={() => onTabChange("data")}
+                        className={`${ITEM_BASE} cursor-pointer ${tab === "data" ? ITEM_ACTIVE : ITEM_IDLE}`}
+                    >
+                        <Table2 className="h-4 w-4" />
+                        Editor
+                    </button>
+                    <button
+                        onClick={() => onTabChange("audit")}
+                        className={`${ITEM_BASE} cursor-pointer ${tab === "audit" ? ITEM_ACTIVE : ITEM_IDLE}`}
+                    >
+                        <History className="h-4 w-4" />
+                        Audit Log
+                    </button>
+                    <Link href="/chart" className={`${ITEM_BASE} ${ITEM_IDLE}`}>
+                        <BarChart2 className="h-4 w-4" />
+                        Chart
                     </Link>
-                    <div className="w-px h-5 bg-neutral-400/50 mx-1" />
-                    <NavigationMenu viewport={false}>
-                        <NavigationMenuList>
-                            <NavigationMenuItem>
-                                <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
-                                    <Link href="/chart" className="flex-row items-center gap-1.5">
-                                        <BarChart2 className="h-4 w-4" />
-                                        Chart
-                                    </Link>
-                                </NavigationMenuLink>
-                            </NavigationMenuItem>
-                            <NavigationMenuItem>
-                                <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
-                                    <Link href="/drafts" className="flex-row items-center gap-1.5">
-                                        <FileText className="h-4 w-4" />
-                                        Drafts
-                                        {draftCount > 0 && (
-                                            <span className="text-[10px] bg-amber-500 text-white rounded-full px-1.5 py-px leading-none">
-                                                {draftCount}
-                                            </span>
-                                        )}
-                                    </Link>
-                                </NavigationMenuLink>
-                            </NavigationMenuItem>
-                        </NavigationMenuList>
-                    </NavigationMenu>
-                </div>
+                    <Link href="/drafts" className={`${ITEM_BASE} ${ITEM_IDLE}`}>
+                        <FileText className="h-4 w-4" />
+                        Drafts
+                        <DraftBadge count={draftCount} />
+                    </Link>
+                </nav>
 
-                {/* Center — Tabs */}
-                <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-white/70 rounded-lg p-1 border border-neutral-300/70">
-                    {TABS.map((t) => (
-                        <button
-                            key={t.value}
-                            onClick={() => onTabChange(t.value)}
-                            className={`px-5 py-1.5 rounded-md text-[12px] font-medium cursor-pointer transition-all
-                                ${tab === t.value
-                                    ? "bg-neutral-900 text-white shadow-sm"
-                                    : "text-neutral-500 hover:text-neutral-900"
-                                }`}
-                        >
-                            {t.label}
-                        </button>
-                    ))}
-                </div>
-
-                {/* Right — User + Logout */}
-                <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-2 bg-white/70 border border-neutral-300/70 rounded-lg px-2.5 py-1.5">
-                        <div className="w-5 h-5 rounded-full bg-[#7c8cf8] flex items-center justify-center text-[10px] font-bold text-white uppercase flex-shrink-0">
+                {/* Right — user + logout (desktop) */}
+                <div className="ml-auto hidden lg:flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-neutral-900 flex items-center justify-center text-[11px] font-semibold text-white uppercase flex-shrink-0">
                             {userEmail.charAt(0) || "?"}
                         </div>
-                        <span className="text-neutral-600 text-[11px] max-w-[150px] truncate leading-none">{userEmail}</span>
+                        <span className="text-neutral-600 text-[12px] max-w-[160px] truncate leading-none">{userEmail}</span>
                     </div>
                     <button
                         onClick={onLogout}
-                        className="flex items-center gap-1.5 text-neutral-500 hover:text-neutral-900 px-2.5 py-1.5 rounded-lg hover:bg-white/70 border border-transparent hover:border-neutral-300/70 text-[12px] cursor-pointer transition-all"
+                        className="flex items-center gap-1.5 text-neutral-500 hover:text-neutral-900 px-2.5 py-1.5 rounded-md hover:bg-neutral-100 text-[13px] font-medium cursor-pointer transition-colors"
                         title="Logout"
                     >
                         <LogOut className="h-4 w-4" />
                     </button>
                 </div>
-            </div>
 
-            {/* Mobile Navigation */}
-            <div className="lg:hidden flex items-center justify-between px-4 py-2 bg-gray-200/80 backdrop-blur shadow-2xs shadow-black rounded-2xl">
-                <Link href="/" className="flex items-center gap-2">
-                    <BrandMark />
-                    <span className="text-[15px] font-semibold tracking-tight text-neutral-900">Montra</span>
-                </Link>
-                <Sheet>
-                    <SheetTrigger asChild>
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            className="bg-white/70 backdrop-blur shadow-2xs shadow-black rounded-xl"
-                        >
-                            <MenuIcon className="h-5 w-5" />
-                            <span className="sr-only">Toggle navigation menu</span>
-                        </Button>
-                    </SheetTrigger>
-                    <SheetContent side="right" className="w-[300px] sm:w-[360px]">
-                        <nav className="flex flex-col space-y-6 p-4">
-                            {/* User */}
-                            <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-full bg-[#7c8cf8] flex items-center justify-center text-[12px] font-bold text-white uppercase flex-shrink-0">
-                                    {userEmail.charAt(0) || "?"}
+                {/* Mobile — hamburger */}
+                <div className="ml-auto lg:hidden">
+                    <Sheet>
+                        <SheetTrigger asChild>
+                            <Button variant="outline" size="icon" className="rounded-md">
+                                <MenuIcon className="h-5 w-5" />
+                                <span className="sr-only">Toggle navigation menu</span>
+                            </Button>
+                        </SheetTrigger>
+                        <SheetContent side="right" className="w-[300px] sm:w-[360px]">
+                            <nav className="flex flex-col space-y-6 p-4">
+                                {/* User */}
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-full bg-neutral-900 flex items-center justify-center text-[12px] font-semibold text-white uppercase flex-shrink-0">
+                                        {userEmail.charAt(0) || "?"}
+                                    </div>
+                                    <span className="text-sm text-neutral-700 truncate">{userEmail}</span>
                                 </div>
-                                <span className="text-sm text-neutral-700 truncate">{userEmail}</span>
-                            </div>
 
-                            {/* View tabs */}
-                            <div className="space-y-2">
-                                <h3 className="font-medium text-xs text-muted-foreground uppercase tracking-wider">View</h3>
-                                <div className="space-y-1">
-                                    {TABS.map((t) => (
-                                        <SheetClose asChild key={t.value}>
-                                            <button
-                                                onClick={() => onTabChange(t.value)}
-                                                className={`block w-full text-left px-2 py-2 text-sm rounded-md transition-colors
-                                                    ${tab === t.value
-                                                        ? "bg-neutral-900 text-white"
-                                                        : "hover:bg-gray-100"
-                                                    }`}
-                                            >
-                                                {t.label}
-                                            </button>
-                                        </SheetClose>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Quick links */}
-                            <div className="space-y-2">
-                                <h3 className="font-medium text-xs text-muted-foreground uppercase tracking-wider">Quick Links</h3>
+                                {/* Nav items */}
                                 <div className="space-y-1">
                                     <SheetClose asChild>
-                                        <Link href="/chart" className="flex items-center gap-2 px-2 py-2 text-sm hover:bg-gray-100 rounded-md">
+                                        <button
+                                            onClick={() => onTabChange("data")}
+                                            className={`w-full ${ITEM_BASE} ${tab === "data" ? ITEM_ACTIVE : ITEM_IDLE}`}
+                                        >
+                                            <Table2 className="h-4 w-4" />
+                                            Editor
+                                        </button>
+                                    </SheetClose>
+                                    <SheetClose asChild>
+                                        <button
+                                            onClick={() => onTabChange("audit")}
+                                            className={`w-full ${ITEM_BASE} ${tab === "audit" ? ITEM_ACTIVE : ITEM_IDLE}`}
+                                        >
+                                            <History className="h-4 w-4" />
+                                            Audit Log
+                                        </button>
+                                    </SheetClose>
+                                    <SheetClose asChild>
+                                        <Link href="/chart" className={`${ITEM_BASE} ${ITEM_IDLE}`}>
                                             <BarChart2 className="h-4 w-4" />
                                             Chart
                                         </Link>
                                     </SheetClose>
                                     <SheetClose asChild>
-                                        <Link href="/drafts" className="flex items-center gap-2 px-2 py-2 text-sm hover:bg-gray-100 rounded-md">
+                                        <Link href="/drafts" className={`${ITEM_BASE} ${ITEM_IDLE}`}>
                                             <FileText className="h-4 w-4" />
                                             Drafts
-                                            {draftCount > 0 && (
-                                                <span className="text-[10px] bg-amber-500 text-white rounded-full px-1.5 py-px leading-none">
-                                                    {draftCount}
-                                                </span>
-                                            )}
+                                            <DraftBadge count={draftCount} />
                                         </Link>
                                     </SheetClose>
                                 </div>
-                            </div>
 
-                            {/* Logout */}
-                            <SheetClose asChild>
-                                <button
-                                    onClick={onLogout}
-                                    className="flex items-center gap-2 px-2 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md"
-                                >
-                                    <LogOut className="h-4 w-4" />
-                                    Logout
-                                </button>
-                            </SheetClose>
-                        </nav>
-                    </SheetContent>
-                </Sheet>
+                                {/* Logout */}
+                                <SheetClose asChild>
+                                    <button
+                                        onClick={onLogout}
+                                        className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md"
+                                    >
+                                        <LogOut className="h-4 w-4" />
+                                        Logout
+                                    </button>
+                                </SheetClose>
+                            </nav>
+                        </SheetContent>
+                    </Sheet>
+                </div>
             </div>
         </header>
     )
