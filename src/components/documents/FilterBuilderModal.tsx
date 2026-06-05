@@ -44,6 +44,8 @@ const OPERATORS = [
   { op: "$regex", label: "contains" },
   { op: "$exists", label: "exists" },
   { op: "$type", label: "type" },
+  { op: "$null", label: "is null" },
+  { op: "$notnull", label: "is not null" },
 ];
 const opMap = Object.fromEntries(OPERATORS.map((o) => [o.op, o]));
 const BSON_TYPES = ["string", "number", "int", "long", "double", "bool", "date", "array", "object", "objectId", "null"];
@@ -135,7 +137,7 @@ function oidWrap(field: string, raw: any) {
 
 function condComplete(c: Cond) {
   if (!c.field) return false;
-  if (c.operator === "$exists" || c.operator === "$type") return true;
+  if (["$exists", "$type", "$null", "$notnull"].includes(c.operator)) return true;
   if (c.operator === "$in" || c.operator === "$nin") return Array.isArray(c.value) && c.value.length > 0;
   return c.value !== "" && c.value != null;
 }
@@ -153,6 +155,8 @@ function condToObj(c: Cond, typeOf: (f: string) => string): any {
   }
   if (op === "$exists") return { [f]: { $exists: c.value === true || c.value === "true" } };
   if (op === "$type") return { [f]: { $type: String(c.value || "string") } };
+  if (op === "$null") return { [f]: null };
+  if (op === "$notnull") return { [f]: { $ne: null } };
   return {};
 }
 
@@ -509,6 +513,7 @@ export default function FilterBuilderModal(p: Props) {
   const renderValue = (c: Cond) => {
     const op = c.operator, t = typeOf(c.field);
     if (!c.field) return <input className={s.vinput} type="text" disabled placeholder="—" />;
+    if (op === "$null" || op === "$notnull") return <input className={s.vinput} type="text" disabled placeholder="no value needed" />;
     // operator-specific inputs take precedence over field-type inputs
     if (op === "$type")
       return (
