@@ -292,16 +292,22 @@ export default function CollectionList({ roomId, roomName, onSelect, activeColle
             />
 
             {/* Body */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto relative">
                 {loading && (
-                    <div className="divide-y divide-gray-100">
-                        {Array.from({ length: 8 }).map((_, i) => (
-                            <div key={i} className="flex items-center gap-3 px-4 sm:px-5 lg:px-6 py-3 animate-pulse">
-                                <div className="w-8 h-8 rounded-lg bg-gray-100 flex-shrink-0" />
-                                <div className="h-3 rounded bg-gray-100" style={{ width: `${110 + (i % 4) * 46}px` }} />
-                            </div>
-                        ))}
-                    </div>
+                    <>
+                        <div className="mongo-progress-track text-neutral-900 sticky top-0 left-0 right-0 z-30" />
+                        <div className="px-4 py-3">
+                            {Array.from({ length: 12 }).map((_, i) => (
+                                <div key={i} className="flex items-center gap-4 py-3 animate-pulse">
+                                    <div className="h-3 w-6 rounded bg-gray-100 flex-shrink-0" />
+                                    <div className="h-3 rounded bg-gray-100" style={{ width: `${160 + (i % 5) * 60}px` }} />
+                                    <div className="h-3 w-16 rounded bg-gray-100" />
+                                    <div className="h-3 w-24 rounded bg-gray-100 hidden sm:block" />
+                                    <div className="h-3 w-20 rounded bg-gray-100 hidden md:block ml-auto" />
+                                </div>
+                            ))}
+                        </div>
+                    </>
                 )}
 
                 {!loading && error && (
