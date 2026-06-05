@@ -42,6 +42,7 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
   const [contextRow, setContextRow] = useState<any>(null);
   const [menuPos, setMenuPos] = useState<any>(null);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<any>(null);
   const [pendingBulkOp, setPendingBulkOp] = useState<ParsedQuery | null>(null);
   const [bulkResult, setBulkResult] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<any>(null);
@@ -196,7 +197,16 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
 
   // Called by the filter modal when it produces a find filter
   const handleRunFind = async (filter: any, sort?: any) => {
+    const filtered = (filter && Object.keys(filter).length > 0) || !!sort;
+    setActiveFilter(filtered ? filter : null);
     await queryData(filter, 1, sort);
+  };
+
+  // Drop the active filter and reload the unfiltered collection
+  const clearFilter = async () => {
+    setActiveFilter(null);
+    setPage(1);
+    await fetchData(1);
   };
 
   const executeBulkOp = async (op: ParsedQuery) => {
@@ -226,6 +236,7 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
       } else {
         setBulkResult(`Matched ${json.matchedCount}, modified ${json.modifiedCount} document${json.modifiedCount !== 1 ? "s" : ""}`);
       }
+      setActiveFilter(null);
       await fetchData(1);
     } catch (err: any) {
       setBulkResult(`Error: ${err?.message || "Operation failed"}`);
@@ -237,24 +248,38 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
 
   return (
     <div className="flex-1 min-w-0 flex flex-col overflow-hidden bg-white">
-      {/* Content Header — collection name + Filter button */}
-      <div className="px-4 py-2.5 border-b border-gray-200 flex-shrink-0 flex items-center justify-between">
-        <div className="text-[15px] font-medium text-gray-900">{collection}</div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => { setPage(1); fetchData(1); }}
-            className="px-3 py-1.5 rounded-md border border-gray-200 text-[12px] text-gray-500 hover:bg-gray-50 cursor-pointer"
-          >
-            Clear filter
-          </button>
-          <button
-            onClick={() => setFilterOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-[#111] text-white text-[12px] font-medium cursor-pointer hover:bg-[#333]"
-          >
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-3.5 h-3.5"><path d="M2 3.5h12M4.5 8h7M6.5 12.5h3" /></svg>
-            Filter
-          </button>
+      {/* Content Header — collection name + filter indicator + Filter button */}
+      <div className="px-4 py-2.5 border-b border-gray-200 flex-shrink-0 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="text-[15px] font-medium text-gray-900 truncate">{collection}</div>
+          {activeFilter && (
+            <span
+              title={JSON.stringify(EJSON.serialize(activeFilter, { relaxed: false }))}
+              className="flex items-center gap-1.5 pl-2 pr-1 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[11px] text-amber-700 font-medium whitespace-nowrap"
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-3 h-3"><path d="M2 3.5h12M4.5 8h7M6.5 12.5h3" /></svg>
+              Filtered
+              <button
+                onClick={clearFilter}
+                aria-label="Clear filter"
+                className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full text-amber-600 hover:bg-amber-200 hover:text-amber-800 cursor-pointer"
+              >
+                ✕
+              </button>
+            </span>
+          )}
         </div>
+        <button
+          onClick={() => setFilterOpen(true)}
+          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-[12px] font-medium cursor-pointer flex-shrink-0 ${
+            activeFilter
+              ? "bg-amber-500 text-white hover:bg-amber-600"
+              : "bg-[#111] text-white hover:bg-[#333]"
+          }`}
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-3.5 h-3.5"><path d="M2 3.5h12M4.5 8h7M6.5 12.5h3" /></svg>
+          Filter
+        </button>
       </div>
 
       {/* View Tabs + doc count */}
@@ -391,7 +416,7 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
         }}
         onView={() => setViewDoc(contextRow)}
         onUpdate={() => openEdit(contextRow)}
-        onRefresh={fetchData}
+        onRefresh={clearFilter}
         onClose={() => { setMenuPos(null); setContextRow(null); }}
       />
 

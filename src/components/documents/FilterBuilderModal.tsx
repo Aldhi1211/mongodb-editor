@@ -380,15 +380,15 @@ export default function FilterBuilderModal(p: Props) {
   const qHighlightRef = useRef<HTMLDivElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
 
-  // reset state whenever the modal is (re)opened
+  // Reset the builder only when the target collection changes — NOT on every
+  // open, so a filter the user built earlier survives closing & reopening.
   useEffect(() => {
-    if (!p.open) return;
     rootRef.current = emptyTree();
     setMode("visual");
     setQueryText(`db.getCollection('${p.collection}').find({})`);
     setValidMsg({ ok: true, label: "Valid filter", msg: "" });
     rerender();
-  }, [p.open, p.collection]);
+  }, [p.collection]);
 
   // current built filter (visual mode) — recomputed every render; rerender() drives updates
   const currentFilter = buildNode(rootRef.current, typeOf) || {};
