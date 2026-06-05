@@ -209,6 +209,12 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
     await fetchData(1);
   };
 
+  // Refresh: re-run the active filter if there is one, otherwise reload the page
+  const refreshDocuments = async () => {
+    if (activeFilter) await queryData(activeFilter, page);
+    else await fetchData(page);
+  };
+
   const executeBulkOp = async (op: ParsedQuery) => {
     if (op.operation === "find") return;
     setPendingBulkOp(null);
@@ -416,7 +422,7 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer" 
         }}
         onView={() => setViewDoc(contextRow)}
         onUpdate={() => openEdit(contextRow)}
-        onRefresh={clearFilter}
+        onRefresh={refreshDocuments}
         onClose={() => { setMenuPos(null); setContextRow(null); }}
       />
 
