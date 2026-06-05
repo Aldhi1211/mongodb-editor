@@ -1,0 +1,245 @@
+/* Montra auth — faithful port of the index.html mockup <style> block */
+
+.root {
+  color-scheme: light;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.root ::selection {
+  background: #0a0a0a;
+  color: #fff;
+}
+
+.mono {
+  font-family: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
+/* ---- Inputs ---- */
+.field {
+  width: 100%;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #0a0a0a;
+  background: #ffffff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.field::placeholder {
+  color: #a3a3a3;
+}
+.field:hover {
+  border-color: #d4d4d4;
+}
+.field:focus {
+  outline: none;
+  border-color: #0a0a0a;
+  box-shadow: 0 0 0 3px rgba(10, 10, 10, 0.1);
+}
+.field.isError {
+  border-color: #dc2626;
+}
+.field.isError:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);
+}
+.fieldPw {
+  padding-right: 44px;
+}
+
+/* ---- Primary button ---- */
+.btnPrimary {
+  width: 100%;
+  background: #0a0a0a;
+  color: #ffffff;
+  border: 1px solid #0a0a0a;
+  border-radius: 8px;
+  padding: 11px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.04s ease;
+}
+.btnPrimary:hover {
+  background: #262626;
+  border-color: #262626;
+}
+.btnPrimary:active {
+  background: #0a0a0a;
+  border-color: #0a0a0a;
+  transform: translateY(1px);
+}
+.btnPrimary:disabled {
+  background: #a3a3a3;
+  border-color: #a3a3a3;
+  color: #ffffff;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ---- OAuth button ---- */
+.btnOauth {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #ffffff;
+  color: #0a0a0a;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.btnOauth:hover {
+  background: #fafafa;
+  border-color: #d4d4d4;
+}
+.btnOauth:active {
+  background: #f5f5f5;
+}
+
+/* ---- Checkbox ---- */
+.checkbox {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border: 1px solid #d4d4d4;
+  border-radius: 5px;
+  background: #ffffff;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.checkbox:hover {
+  border-color: #a3a3a3;
+}
+.checkbox:checked {
+  background: #0a0a0a url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.6 6.2 4.9 8.6 9.4 3.4' fill='none' stroke='white' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    center / 11px no-repeat;
+  border-color: #0a0a0a;
+}
+
+/* ---- Keyboard focus (neutral, not blue) ---- */
+.root a:focus-visible,
+.root button:focus-visible,
+.checkbox:focus-visible {
+  outline: 2px solid #0a0a0a;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ---- Brand panel grid texture ---- */
+.gridTexture {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 34px 34px;
+}
+
+/* ---- Faux editor ---- */
+.editor {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: #111111;
+  overflow: hidden;
+}
+.editorBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.wdot {
+  width: 9px;
+  height: 9px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.16);
+}
+.editorBody {
+  padding: 14px 16px;
+  display: flex;
+}
+.gutter {
+  color: #3f3f3f;
+  text-align: right;
+  padding-right: 16px;
+  user-select: none;
+}
+.editorDiv {
+  padding: 8px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.015);
+}
+.editorResult {
+  padding: 12px 16px;
+}
+.code {
+  white-space: pre;
+}
+
+/* grayscale syntax tokens (global so dangerouslySetInnerHTML markup matches) */
+:global(.tk-fn) {
+  color: #fafafa;
+}
+:global(.tk-pn) {
+  color: #6e6e6e;
+}
+:global(.tk-ky) {
+  color: #d4d4d4;
+}
+:global(.tk-op) {
+  color: #a3a3a3;
+}
+:global(.tk-nm) {
+  color: #ffffff;
+}
+:global(.tk-st) {
+  color: #c9c9c9;
+}
+:global(.tk-dim) {
+  color: #5c5c5c;
+}
+
+/* ---- Entrance motion ---- */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rise {
+  animation: rise 0.55s cubic-bezier(0.2, 0.6, 0.2, 1) both;
+}
+.d1 {
+  animation-delay: 0.04s;
+}
+.d2 {
+  animation-delay: 0.1s;
+}
+.d3 {
+  animation-delay: 0.16s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root *,
+  .root *::before,
+  .root *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

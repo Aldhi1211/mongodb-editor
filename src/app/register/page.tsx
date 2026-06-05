@@ -15,15 +15,15 @@ import s from "@/components/auth/montra.module.css";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const router = useRouter();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
-  const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
 
   const emailInvalid = email.length > 0 && !EMAIL_RE.test(email);
 
@@ -36,34 +36,61 @@ export default function LoginPage() {
       setError("Enter a valid email address.");
       return;
     }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
 
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Sign in failed.");
+        setError(data.error || "Registration failed.");
         setLoading(false);
         return;
       }
-      localStorage.setItem("token", data.token);
-      router.push("/");
+      setDone(true);
     } catch {
       setError("Something went wrong. Please try again.");
       setLoading(false);
     }
   };
 
+  if (done) {
+    return (
+      <AuthShell>
+        <div className="mb-7">
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-950">
+            Account created
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-neutral-600">
+            Your Montra account is ready. Sign in to connect to your clusters.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => router.push("/login")}
+          className={s.btnPrimary}
+        >
+          Continue to sign in
+        </button>
+      </AuthShell>
+    );
+  }
+
   return (
     <AuthShell>
       <div className="mb-7">
-        <h1 className="text-2xl font-semibold tracking-tight text-neutral-950">Sign in to Montra</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-neutral-950">
+          Create your account
+        </h1>
         <p className="mt-2 text-sm leading-relaxed text-neutral-600">
-          Connect to your clusters and pick up where you left off.
+          Get started with Montra — the fastest way to work with MongoDB.
         </p>
       </div>
 
@@ -117,24 +144,16 @@ export default function LoginPage() {
 
         {/* Password */}
         <div>
-          <div className="mb-1.5 flex items-center justify-between">
-            <label htmlFor="password" className="text-sm font-medium text-neutral-700">
-              Password
-            </label>
-            <a
-              href="#"
-              className="text-sm font-medium text-neutral-900 underline-offset-4 hover:underline"
-            >
-              Forgot password?
-            </a>
-          </div>
+          <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-neutral-700">
+            Password
+          </label>
           <div className="relative">
             <input
               id="password"
               name="password"
               type={showPw ? "text" : "password"}
-              autoComplete="current-password"
-              placeholder="Enter your password"
+              autoComplete="new-password"
+              placeholder="At least 8 characters"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className={`${s.field} ${s.fieldPw}`}
@@ -151,18 +170,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Remember */}
-        <label className="flex cursor-pointer select-none items-center gap-2.5 text-sm text-neutral-700">
-          <input
-            type="checkbox"
-            name="remember"
-            checked={remember}
-            onChange={(e) => setRemember(e.target.checked)}
-            className={s.checkbox}
-          />
-          Remember this device
-        </label>
-
         {/* Server / submit error */}
         {error && (
           <p className="flex items-center gap-1.5 text-xs text-[#DC2626]">
@@ -173,15 +180,15 @@ export default function LoginPage() {
 
         {/* Submit */}
         <button type="submit" disabled={loading} className={s.btnPrimary}>
-          {loading ? "Signing in…" : "Sign in"}
+          {loading ? "Creating account…" : "Create account"}
         </button>
       </form>
 
       {/* Footer */}
       <p className="mt-6 text-center text-sm text-neutral-600">
-        New to Montra?{" "}
-        <Link href="/register" className="font-medium text-neutral-900 underline underline-offset-4">
-          Create an account
+        Already have an account?{" "}
+        <Link href="/login" className="font-medium text-neutral-900 underline underline-offset-4">
+          Sign in
         </Link>
       </p>
     </AuthShell>
