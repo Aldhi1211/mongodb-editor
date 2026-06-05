@@ -127,9 +127,10 @@ export default function Home() {
     setCollectionSearch("");
   };
 
-  // The collection list is the only surface the navbar search + "New collection" act on.
+  // The collection list is the only surface the navbar search acts on.
   const inCollectionList = view === "collections" && !!activeRoomId && !collection && !editing;
-  const canCreateCollection = inCollectionList && userRole !== "viewer";
+  const inDocumentTable = view === "collections" && !!activeRoomId && !!collection && !editing;
+  const canWrite = userRole !== "viewer";
 
   const handleEditDoc = (doc: any) => {
     // Table rows are EJSON-*serialized* plain objects; convert back to BSON so the
@@ -157,6 +158,17 @@ export default function Home() {
     setView("collections");
   };
 
+  // Contextual create button shown in the navbar (New collection / New document).
+  let onCreate: (() => void) | undefined;
+  let createLabel: string | undefined;
+  if (canWrite && inCollectionList) {
+    onCreate = () => setAddNonce((n) => n + 1);
+    createLabel = "New collection";
+  } else if (canWrite && inDocumentTable) {
+    onCreate = handleNewDoc;
+    createLabel = "New document";
+  }
+
   if (!token) return null;
 
   return (
@@ -171,7 +183,8 @@ export default function Home() {
         search={collectionSearch}
         onSearchChange={inCollectionList ? setCollectionSearch : undefined}
         searchPlaceholder="Search collection…"
-        onNewCollection={canCreateCollection ? () => setAddNonce((n) => n + 1) : undefined}
+        onCreate={onCreate}
+        createLabel={createLabel}
       />
 
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
@@ -200,7 +213,6 @@ export default function Home() {
                 userRole={userRole}
                 cluster={activeRoomName}
                 onEdit={handleEditDoc}
-                onNew={handleNewDoc}
                 onNavigateCluster={() => setCollection(null)}
               />
             ) : (

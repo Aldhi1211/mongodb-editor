@@ -42,8 +42,9 @@ interface NavBarMenuProps {
     search?: string
     onSearchChange?: (value: string) => void
     searchPlaceholder?: string
-    /** When provided, renders a "New collection" button next to the help icon. */
-    onNewCollection?: () => void
+    /** When provided, renders a contextual create button next to the help icon. */
+    onCreate?: () => void
+    createLabel?: string
 }
 
 /** Montra brand mark — same glyph used on the auth pages. */
@@ -91,7 +92,8 @@ export function NavBarMenu({
     search,
     onSearchChange,
     searchPlaceholder = "Search",
-    onNewCollection,
+    onCreate,
+    createLabel = "New",
 }: NavBarMenuProps) {
     const router = useRouter()
     const [userEmail, setUserEmail] = useState("")
@@ -301,14 +303,14 @@ export function NavBarMenu({
                         <HelpCircle className="w-[18px] h-[18px]" />
                     </button>
 
-                    {/* New collection — contextual action next to help */}
-                    {onNewCollection && (
+                    {/* Contextual create action next to help */}
+                    {onCreate && (
                         <button
-                            onClick={onNewCollection}
+                            onClick={onCreate}
                             className="hidden md:inline-flex items-center gap-1.5 h-[34px] px-3 rounded-lg text-[12px] font-semibold bg-neutral-900 hover:bg-neutral-700 text-white cursor-pointer"
                         >
                             <Plus className="w-3.5 h-3.5" />
-                            New collection
+                            {createLabel}
                         </button>
                     )}
 

@@ -294,8 +294,13 @@ export default function CollectionList({ roomId, roomName, onSelect, activeColle
             {/* Body */}
             <div className="flex-1 overflow-y-auto">
                 {loading && (
-                    <div className="flex items-center justify-center py-16">
-                        <Loader2 className="w-5 h-5 text-gray-300 animate-spin" />
+                    <div className="divide-y divide-gray-100">
+                        {Array.from({ length: 8 }).map((_, i) => (
+                            <div key={i} className="flex items-center gap-3 px-4 sm:px-5 lg:px-6 py-3 animate-pulse">
+                                <div className="w-8 h-8 rounded-lg bg-gray-100 flex-shrink-0" />
+                                <div className="h-3 rounded bg-gray-100" style={{ width: `${110 + (i % 4) * 46}px` }} />
+                            </div>
+                        ))}
                     </div>
                 )}
 

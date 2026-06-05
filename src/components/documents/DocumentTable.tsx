@@ -21,7 +21,7 @@ type ParsedQuery =
   | { operation: "find"; filter: any; sort?: any }
   | { operation: WriteOp; filter: any; update?: any };
 
-export default function DocumentTable({ roomId, collection, userRole = "viewer", cluster, onEdit, onNew, onNavigateCluster }: any) {
+export default function DocumentTable({ roomId, collection, userRole = "viewer", cluster, onEdit, onNavigateCluster }: any) {
   const canWrite = userRole !== "viewer";
   const canDelete = userRole === "owner" || userRole === "admin";
   const {
@@ -112,8 +112,6 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer",
       return { name, type };
     });
   }, [data]);
-
-  const openNew = () => onNew?.();
 
   const openEdit = (doc: any) => onEdit?.(doc);
 
@@ -253,14 +251,6 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer",
         onClusterClick={onNavigateCluster}
         right={
           <>
-            {canWrite && (
-              <button
-                className="px-3 py-1 rounded-md text-[12px] font-medium bg-[#111] text-white hover:bg-[#333] cursor-pointer"
-                onClick={openNew}
-              >
-                New
-              </button>
-            )}
             <button
               className="px-3 py-1 rounded-md text-[12px] text-gray-600 border border-gray-200 hover:bg-gray-50 cursor-pointer"
               onClick={() => setIsJsonViewOpen(true)}
@@ -307,10 +297,21 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer",
       {/* Table */}
       <div className="flex-1 overflow-auto min-h-0 relative">
         {isFetching && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/60 z-20">
-            <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-700 rounded-full animate-spin" />
-          </div>
+          <div className="mongo-progress-track text-neutral-900 sticky top-0 left-0 right-0 z-30" />
         )}
+        {isFetching && data.length === 0 ? (
+          <div className="px-4 py-3">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4 py-3 animate-pulse">
+                <div className="h-3 w-6 rounded bg-gray-100 flex-shrink-0" />
+                <div className="h-3 rounded bg-gray-100" style={{ width: `${160 + (i % 5) * 60}px` }} />
+                <div className="h-3 w-16 rounded bg-gray-100" />
+                <div className="h-3 w-24 rounded bg-gray-100 hidden sm:block" />
+                <div className="h-3 w-20 rounded bg-gray-100 hidden md:block ml-auto" />
+              </div>
+            ))}
+          </div>
+        ) : (
         <table className="border-collapse text-[12px] font-mono min-w-max w-full">
           <thead className="sticky top-0 z-10">
             <tr>
@@ -370,6 +371,7 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer",
             })}
           </tbody>
         </table>
+        )}
       </div>
 
       {/* Pagination */}
