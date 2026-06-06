@@ -235,7 +235,7 @@ export default function Home() {
           </div>
         )}
 
-        {view === "charts" && <ChartListView />}
+        {view === "charts" && <ChartListView roomId={activeRoomId} />}
 
         {view === "drafts" && <DraftsView onContinue={handleContinueDraft} />}
       </div>

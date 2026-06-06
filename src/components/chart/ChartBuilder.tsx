@@ -7,14 +7,16 @@ import ChartCanvas from "./ChartCanvas";
 type Props = {
   initialData?: { nodes: any[]; edges: any[] };
   onSave?: (nodes: any[], edges: any[]) => void;
+  /** View-only mode: hides the components sidebar and disables editing. */
+  readOnly?: boolean;
 };
 
-export default function ChartBuilder({ initialData, onSave }: Props) {
+export default function ChartBuilder({ initialData, onSave, readOnly = false }: Props) {
   return (
     <ReactFlowProvider>
       <div className="flex w-full h-full">
-        <ChartSidebar />
-        <ChartCanvas initialData={initialData} onSave={onSave} />
+        {!readOnly && <ChartSidebar />}
+        <ChartCanvas initialData={initialData} onSave={onSave} readOnly={readOnly} />
       </div>
     </ReactFlowProvider>
   );

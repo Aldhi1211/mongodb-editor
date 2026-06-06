@@ -16,11 +16,12 @@ import {
   type Edge,
 } from "@xyflow/react";
 import { useCallback, useRef, useEffect } from "react";
-import { FormNode, MasterdataNode, PdfNode, ReportsNode } from "./ChartNode";
+import { FormNode, ValidationNode, MasterdataNode, PdfNode, ReportsNode } from "./ChartNode";
 import { MousePointer2, Save } from "lucide-react";
 
 const nodeTypes = {
   form: FormNode,
+  validation: ValidationNode,
   masterdata: MasterdataNode,
   pdf: PdfNode,
   reports: ReportsNode,
@@ -28,6 +29,7 @@ const nodeTypes = {
 
 const NODE_COLORS: Record<string, string> = {
   form: "#6366f1",
+  validation: "#f59e0b",
   masterdata: "#8b5cf6",
   pdf: "#ef4444",
   reports: "#10b981",
@@ -35,6 +37,7 @@ const NODE_COLORS: Record<string, string> = {
 
 const LABELS: Record<string, string> = {
   form: "Form",
+  validation: "Validation",
   masterdata: "Masterdata",
   pdf: "PDF",
   reports: "Reports",
@@ -47,9 +50,11 @@ const EDGE_STYLE = { stroke: "#7c8cf8", strokeWidth: 1.5 };
 type Props = {
   initialData?: { nodes: any[]; edges: any[] };
   onSave?: (nodes: any[], edges: any[]) => void;
+  /** View-only mode: no connecting/deleting, drop is ignored. */
+  readOnly?: boolean;
 };
 
-export default function ChartCanvas({ initialData, onSave }: Props) {
+export default function ChartCanvas({ initialData, onSave, readOnly = false }: Props) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>(initialData?.nodes ?? []);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialData?.edges ?? []);
@@ -78,6 +83,7 @@ export default function ChartCanvas({ initialData, onSave }: Props) {
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
+      if (readOnly) return;
       const type = e.dataTransfer.getData("application/reactflow");
       if (!type) return;
 
@@ -92,7 +98,7 @@ export default function ChartCanvas({ initialData, onSave }: Props) {
 
       setNodes((nds) => [...nds, newNode]);
     },
-    [screenToFlowPosition, setNodes]
+    [screenToFlowPosition, setNodes, readOnly]
   );
 
   const handleSave = useCallback(() => {
@@ -124,7 +130,8 @@ export default function ChartCanvas({ initialData, onSave }: Props) {
         defaultEdgeOptions={{ animated: true, style: EDGE_STYLE }}
         style={{ backgroundColor: "#080808" }}
         fitView
-        deleteKeyCode="Delete"
+        nodesConnectable={!readOnly}
+        deleteKeyCode={readOnly ? null : "Delete"}
       >
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#1e1e1e" />
 

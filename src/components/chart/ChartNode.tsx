@@ -2,15 +2,16 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Handle, Position, type NodeProps, useReactFlow } from "@xyflow/react";
-import { FileText, Database, FileDown, BarChart3, Pencil, Check, X } from "lucide-react";
+import { FileText, Database, FileDown, BarChart3, ShieldCheck, Pencil, Check, X } from "lucide-react";
 
 type NodeConfig = { label: string; Icon: React.ElementType; color: string };
 
 const NODE_CONFIGS: Record<string, NodeConfig> = {
-  form:       { label: "Form",       Icon: FileText,  color: "#6366f1" },
-  masterdata: { label: "Masterdata", Icon: Database,  color: "#8b5cf6" },
-  pdf:        { label: "PDF",        Icon: FileDown,  color: "#ef4444" },
-  reports:    { label: "Reports",    Icon: BarChart3, color: "#10b981" },
+  form:       { label: "Form",       Icon: FileText,    color: "#6366f1" },
+  validation: { label: "Validation", Icon: ShieldCheck, color: "#f59e0b" },
+  masterdata: { label: "Masterdata", Icon: Database,    color: "#8b5cf6" },
+  pdf:        { label: "PDF",        Icon: FileDown,    color: "#ef4444" },
+  reports:    { label: "Reports",    Icon: BarChart3,   color: "#10b981" },
 };
 
 function ChartNodeBase({ id, data, selected, nodeType }: NodeProps & { nodeType: string }) {
@@ -192,6 +193,7 @@ function ChartNodeBase({ id, data, selected, nodeType }: NodeProps & { nodeType:
 }
 
 export const FormNode       = (props: NodeProps) => <ChartNodeBase {...props} nodeType="form" />;
+export const ValidationNode = (props: NodeProps) => <ChartNodeBase {...props} nodeType="validation" />;
 export const MasterdataNode = (props: NodeProps) => <ChartNodeBase {...props} nodeType="masterdata" />;
 export const PdfNode        = (props: NodeProps) => <ChartNodeBase {...props} nodeType="pdf" />;
 export const ReportsNode    = (props: NodeProps) => <ChartNodeBase {...props} nodeType="reports" />;
