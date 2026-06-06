@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { RefreshCcw, AlertTriangle, Loader2, Database } from 'lucide-react'
+import { RefreshCcw, ServerCrash, Loader2, Database } from 'lucide-react'
 import ConfirmDialog from "@/components/ui/ConfirmDialog"
 import Breadcrumb from "@/components/Breadcrumb"
 import CollectionContextMenu from "./CollectionContextMenu"
@@ -23,23 +23,62 @@ type Props = {
     addSignal?: number
 }
 
-function friendlyError(raw: string): string {
-    if (raw.includes('wire version') || raw.includes('4.2') || raw.includes('3.6'))
-        return 'MongoDB version is not supported. Please upgrade to MongoDB 3.6 or newer.'
-    if (raw.includes('ECONNREFUSED') || raw.includes('connect'))
-        return 'Unable to connect to the database. Please check the connection URI.'
-    if (raw.includes('Authentication') || raw.includes('auth'))
-        return 'Authentication failed. Please check your credentials.'
-    return 'Could not load collections. Please try again.'
+type ConnError = { title: string; message: string; hint?: string; raw?: string }
+
+function friendlyError(raw: string): ConnError {
+    const r = (raw || '').toLowerCase()
+
+    if (r.includes('wire version') || r.includes('4.2') || r.includes('3.6'))
+        return {
+            title: 'Unsupported MongoDB version',
+            message: 'This cluster runs a MongoDB version that is too old to use here.',
+            hint: 'Upgrade the server to MongoDB 3.6 or newer.',
+        }
+    if (r.includes('bad auth') || r.includes('authentication') || r.includes('auth failed') || r.includes('credentials') || r.includes('unauthorized'))
+        return {
+            title: 'Authentication failed',
+            message: 'The username or password for this cluster was rejected.',
+            hint: 'Update the database user / password in the cluster connection URI.',
+        }
+    if (r.includes('not whitelist') || r.includes('not allowed') || r.includes('ip address') || r.includes('ip that isn'))
+        return {
+            title: 'IP address not allowed',
+            message: "The server's IP is not on this cluster's access list.",
+            hint: 'In MongoDB Atlas → Network Access, allow the server IP (or 0.0.0.0/0).',
+        }
+    if (r.includes('timed out') || r.includes('serverselection') || r.includes('etimedout') || r.includes('timeout'))
+        return {
+            title: "Can't reach the cluster",
+            message: 'The connection timed out while trying to reach the database.',
+            hint: 'Check that the cluster is online and that the server IP is allowed (Atlas: add 0.0.0.0/0 to Network Access).',
+        }
+    if (r.includes('enotfound') || r.includes('querysrv') || r.includes('eservfail') || r.includes('getaddrinfo') || r.includes('dns'))
+        return {
+            title: 'Cluster address not found',
+            message: 'The database host name could not be resolved.',
+            hint: 'Double-check the hostname in this cluster’s connection URI.',
+        }
+    if (r.includes('econnrefused') || r.includes('connect'))
+        return {
+            title: 'Connection refused',
+            message: 'The database refused the connection.',
+            hint: 'Verify the cluster is running and reachable from the server.',
+        }
+    return {
+        title: 'Could not connect to the cluster',
+        message: 'Something went wrong while loading collections from this cluster.',
+        hint: 'Please try again in a moment.',
+    }
 }
 
-async function fetchCollections(roomId: string): Promise<{ data: Collection[]; error: string | null }> {
+async function fetchCollections(roomId: string): Promise<{ data: Collection[]; error: ConnError | null }> {
     const res = await fetch(`/api/rooms/${roomId}/collections`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
     })
     const json = await res.json()
     if (!res.ok || json.error) {
-        return { data: [], error: friendlyError(json.error || '') }
+        const raw = json.error || `Request failed (${res.status})`
+        return { data: [], error: { ...friendlyError(raw), raw } }
     }
     return { data: Array.isArray(json) ? json : [], error: null }
 }
@@ -103,7 +142,13 @@ function InputDialog({
 export default function CollectionList({ roomId, roomName, onSelect, activeCollection, userRole = "viewer", search = '', addSignal = 0 }: Props) {
     const [collections, setCollections] = useState<Collection[]>([])
     const [loading, setLoading] = useState(false)
-    const [error, setError] = useState<string | null>(null)
+    const [error, setError] = useState<ConnError | null>(null)
+
+    const networkError: ConnError = {
+        title: 'Network error',
+        message: 'Could not reach the server.',
+        hint: 'Check your internet connection and try again.',
+    }
 
     // context menu
     const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
@@ -168,7 +213,7 @@ export default function CollectionList({ roomId, roomName, onSelect, activeColle
             setCollections(data)
             setError(err)
         } catch {
-            setError('Network error. Please check your internet connection.')
+            setError(networkError)
             setCollections([])
         } finally {
             setLoading(false)
@@ -185,7 +230,7 @@ export default function CollectionList({ roomId, roomName, onSelect, activeColle
                 if (!cancelled) { setCollections(data); setError(err) }
             } catch {
                 if (!cancelled) {
-                    setError('Network error. Please check your internet connection.')
+                    setError(networkError)
                     setCollections([])
                 }
             } finally {
@@ -311,14 +356,28 @@ export default function CollectionList({ roomId, roomName, onSelect, activeColle
                 )}
 
                 {!loading && error && (
-                    <div className="mx-auto mt-6 max-w-md p-3 rounded-lg bg-red-50 border border-red-100">
-                        <div className="flex items-start gap-2">
-                            <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-                            <p className="text-[12px] text-red-500 leading-snug">{error}</p>
+                    <div className="h-full flex flex-col items-center justify-center px-6 py-16 text-center">
+                        <div className="w-16 h-16 rounded-2xl bg-red-50 border border-red-100 grid place-items-center mb-4">
+                            <ServerCrash className="w-7 h-7 text-red-400" />
                         </div>
-                        <button onClick={loadCollections} className="mt-2 w-full text-[11px] text-red-500 hover:text-red-700 bg-red-100 hover:bg-red-200 rounded px-2 py-1 cursor-pointer transition-colors">
-                            Retry
+                        <p className="text-[15px] font-semibold text-gray-800">{error.title}</p>
+                        <p className="text-[13px] text-gray-500 mt-1.5 max-w-sm leading-relaxed">{error.message}</p>
+                        {error.hint && (
+                            <p className="text-[12px] text-gray-400 mt-2 max-w-sm leading-relaxed">{error.hint}</p>
+                        )}
+                        <button
+                            onClick={loadCollections}
+                            className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium bg-neutral-900 hover:bg-neutral-700 text-white cursor-pointer transition-colors"
+                        >
+                            <RefreshCcw className="w-3.5 h-3.5" />
+                            Try again
                         </button>
+                        {error.raw && (
+                            <details className="mt-5 w-full max-w-md text-left">
+                                <summary className="text-[11px] text-gray-400 hover:text-gray-600 cursor-pointer text-center">Technical details</summary>
+                                <pre className="mt-2 text-[11px] font-mono text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 overflow-auto max-h-32 whitespace-pre-wrap break-words">{error.raw}</pre>
+                            </details>
+                        )}
                     </div>
                 )}
 
