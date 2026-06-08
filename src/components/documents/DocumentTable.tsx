@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -14,7 +14,7 @@ import JsonViewerModal from "./JsonViewerModal";
 import FilterBuilderModal, { FieldDef } from "./FilterBuilderModal";
 import Breadcrumb from "@/components/Breadcrumb";
 import { getEjsonIdString, toShellString } from "@/lib/ejsonShell";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 
 type WriteOp = "deleteOne" | "deleteMany" | "updateOne" | "updateMany";
 type ParsedQuery =
@@ -46,6 +46,19 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer",
   const [bulkResult, setBulkResult] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<any>(null);
   const [deleting, setDeleting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [pendingSelDelete, setPendingSelDelete] = useState(false);
+  const [selDeleting, setSelDeleting] = useState(false);
+
+  // Drop the selection when the page / collection changes.
+  useEffect(() => { setSelected(new Set()); }, [page, collection]);
+
+  const toggleRow = (id: string) =>
+    setSelected((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
 
   const formatCellValue = useCallback((value: any) => {
     if (value === null || value === undefined) return <span className="text-gray-300">—</span>;
@@ -63,11 +76,33 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer",
       {
         id: "__rownum__",
         header: "#",
-        cell: (info) => (
-          <span className="text-gray-400 text-[11px] select-none">
-            {(page - 1) * limit + info.row.index + 1}
-          </span>
-        ),
+        cell: (info) => {
+          const num = (page - 1) * limit + info.row.index + 1;
+          const sel = selectionRef.current;
+          if (!sel?.canWrite) {
+            return <span className="text-gray-400 text-[11px] select-none">{num}</span>;
+          }
+          const id = getEjsonIdString(info.row.original._id);
+          const isSel = sel.selected.has(id);
+          return (
+            <span
+              className="relative flex items-center justify-end w-full h-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {!isSel && (
+                <span className="absolute right-0 text-gray-400 text-[11px] select-none group-hover:opacity-0 pointer-events-none">
+                  {num}
+                </span>
+              )}
+              <input
+                type="checkbox"
+                checked={isSel}
+                onChange={() => sel.toggle(id)}
+                className={`w-3.5 h-3.5 cursor-pointer accent-neutral-900 ${isSel ? "" : "opacity-0 group-hover:opacity-100"}`}
+              />
+            </span>
+          );
+        },
       },
       ...Object.keys(data[0]).map((key) => ({
         accessorKey: key,
@@ -242,6 +277,52 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer",
   const startRow = (page - 1) * limit + 1;
   const endRow = Math.min(page * limit, total);
 
+  // ── Row selection (for multi-delete) ──
+  const pageIds = data.map((d: any) => getEjsonIdString(d._id));
+  const allSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  const someSelected = pageIds.some((id) => selected.has(id));
+  const toggleAll = () =>
+    setSelected((prev) => {
+      const n = new Set(prev);
+      if (allSelected) pageIds.forEach((id) => n.delete(id));
+      else pageIds.forEach((id) => n.add(id));
+      return n;
+    });
+
+  // Keep a live ref so memoized cell renderers read fresh selection state
+  // without rebuilding the column definitions on every toggle.
+  const selectionRef = useRef<{ selected: Set<string>; toggle: (id: string) => void; canWrite: boolean }>({
+    selected,
+    toggle: toggleRow,
+    canWrite,
+  });
+  selectionRef.current = { selected, toggle: toggleRow, canWrite };
+
+  const deleteSelected = async () => {
+    const ids = data.filter((d: any) => selected.has(getEjsonIdString(d._id))).map((d: any) => d._id);
+    if (!ids.length) { setPendingSelDelete(false); return; }
+    setSelDeleting(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/rooms/${roomId}/collections/${collection}/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ operation: "deleteMany", filter: { _id: { $in: ids } } }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setBulkResult(`Deleted ${json.deletedCount} document${json.deletedCount !== 1 ? "s" : ""}`);
+      } else {
+        setBulkResult(`Error: ${json.error || "Delete failed"}`);
+      }
+      setSelected(new Set());
+      setPendingSelDelete(false);
+      await refreshDocuments();
+    } finally {
+      setSelDeleting(false);
+    }
+  };
+
   return (
     <div className="flex-1 min-w-0 flex flex-col overflow-hidden bg-white">
       {/* Sub-toolbar: breadcrumb (cluster / collection) + actions + count + Filter */}
@@ -322,7 +403,18 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer",
                     ${i === 0 ? "sticky left-0 z-20 bg-gray-50 border-r border-gray-200 w-9 text-right pr-2" : ""}
                   `}
                 >
-                  {i === 0 ? "#" : (
+                  {i === 0 ? (
+                    canWrite ? (
+                      <input
+                        type="checkbox"
+                        aria-label="Select all on this page"
+                        checked={allSelected}
+                        ref={(el) => { if (el) el.indeterminate = !allSelected && someSelected; }}
+                        onChange={toggleAll}
+                        className="w-3.5 h-3.5 cursor-pointer accent-neutral-900 align-middle"
+                      />
+                    ) : "#"
+                  ) : (
                     <span className="flex items-center gap-1">
                       {flexRender(h.column.columnDef.header, h.getContext())}
                       <span className="text-gray-300">↕</span>
@@ -512,6 +604,57 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer",
               >
                 {deleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 {deleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Selection action bar */}
+      {selected.size > 0 && !pendingSelDelete && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 pl-4 pr-2.5 py-2 bg-neutral-900 text-white text-[12px] rounded-lg shadow-xl">
+          <span className="font-medium">{selected.size} selected</span>
+          <button
+            className="text-gray-300 hover:text-white cursor-pointer"
+            onClick={() => setSelected(new Set())}
+          >
+            Clear
+          </button>
+          <button
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-red-600 hover:bg-red-700 text-white font-medium cursor-pointer"
+            onClick={() => setPendingSelDelete(true)}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete
+          </button>
+        </div>
+      )}
+
+      {/* Selection delete confirmation dialog */}
+      {pendingSelDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <p className="text-[13px] font-semibold text-gray-900">
+                Delete <span className="font-mono text-red-600">{selected.size}</span> document{selected.size !== 1 ? "s" : ""}?
+              </p>
+              <p className="text-[11px] text-gray-400 mt-0.5">This action cannot be undone.</p>
+            </div>
+            <div className="px-5 pb-4 pt-4 flex justify-end gap-2">
+              <button
+                className="px-4 py-1.5 rounded-md border border-gray-200 text-[12px] text-gray-600 hover:bg-gray-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                disabled={selDeleting}
+                onClick={() => setPendingSelDelete(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-1.5 rounded-md bg-red-600 text-white text-[12px] font-medium hover:bg-red-700 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                disabled={selDeleting}
+                onClick={deleteSelected}
+              >
+                {selDeleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {selDeleting ? "Deleting..." : "Delete"}
               </button>
             </div>
           </div>
