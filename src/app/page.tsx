@@ -213,6 +213,7 @@ export default function Home() {
                 userRole={userRole}
                 cluster={activeRoomName}
                 onEdit={handleEditDoc}
+                onNew={handleNewDoc}
                 onNavigateCluster={() => setCollection(null)}
               />
             ) : (

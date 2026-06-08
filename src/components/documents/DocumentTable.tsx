@@ -21,7 +21,7 @@ type ParsedQuery =
   | { operation: "find"; filter: any; sort?: any }
   | { operation: WriteOp; filter: any; update?: any };
 
-export default function DocumentTable({ roomId, collection, userRole = "viewer", cluster, onEdit, onNavigateCluster }: any) {
+export default function DocumentTable({ roomId, collection, userRole = "viewer", cluster, onEdit, onNew, onNavigateCluster }: any) {
   const canWrite = userRole !== "viewer";
   const canDelete = userRole === "owner" || userRole === "admin";
   const {
@@ -413,6 +413,7 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer",
       <DocumentContextMenu
         pos={menuPos}
         userRole={userRole}
+        onAdd={() => onNew?.()}
         onDelete={() => {
           setPendingDelete(contextRow);
           setMenuPos(null);
