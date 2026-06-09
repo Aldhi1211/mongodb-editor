@@ -32,6 +32,8 @@ type Workflow = {
 };
 
 const EDGE_STYLE = { stroke: "#7c8cf8", strokeWidth: 1.5 };
+/** Dashed green edge for "this node triggers this report" links. */
+const REPORT_EDGE_STYLE = { stroke: "#10b981", strokeWidth: 1.5, strokeDasharray: "5 3" };
 
 /** Map a workflow node `type` to a registered chart node type. */
 function chartNodeType(rawType: any): string {
@@ -76,8 +78,13 @@ function destNodeId(dest: any): string | null {
  *     · fallback:    defaultDest.node.nodeId           (taken only when no route matches → "else")
  *   Links to the same target are merged into one edge; concrete conditions are joined with " / ".
  * - Uses each node's own `position` when all are present & distinct; otherwise BFS auto-layout.
+ * - Reports whose `triggers` reference a node in this workflow (`{workflowId}.{nodeId}`) are
+ *   appended as green nodes in a lane on the right, with a dashed edge from each trigger node.
  */
-function mapWorkflowToFlow(wf: Workflow): { nodes: any[]; edges: any[] } {
+function mapWorkflowToFlow(
+  wf: Workflow,
+  reports: Workflow[] = [],
+): { nodes: any[]; edges: any[] } {
   const wfNodes = Array.isArray(wf?.nodes) ? wf.nodes : [];
   const ids = wfNodes.map((n) => String(n?.id));
   const idSet = new Set(ids);
@@ -186,7 +193,59 @@ function mapWorkflowToFlow(wf: Workflow): { nodes: any[]; edges: any[] } {
     };
   });
 
-  return { nodes, edges };
+  // ── Reports triggered by this workflow's nodes ──
+  // A report's `triggers` entry looks like "{workflowId}.{nodeId}". We anchor on this
+  // workflow's id so node ids containing dots are matched unambiguously.
+  const wfId = getEjsonIdString(wf?._id);
+  const posById = new Map<string, { x: number; y: number }>(
+    nodes.map((n) => [n.id, n.position as { x: number; y: number }]),
+  );
+  const maxX = nodes.reduce((m, n) => Math.max(m, (n.position as { x: number }).x), 0);
+
+  type RepMatch = { rep: Workflow; triggerNodeIds: string[]; anchorY: number };
+  const matches: RepMatch[] = [];
+  for (const rep of reports) {
+    const triggers = Array.isArray(rep?.triggers) ? rep.triggers : [];
+    const triggerNodeIds: string[] = [];
+    for (const t of triggers) {
+      const s = String(t);
+      if (!wfId || !s.startsWith(wfId + ".")) continue;
+      const nodeId = s.slice(wfId.length + 1);
+      if (idSet.has(nodeId) && !triggerNodeIds.includes(nodeId)) triggerNodeIds.push(nodeId);
+    }
+    if (triggerNodeIds.length === 0) continue;
+    matches.push({ rep, triggerNodeIds, anchorY: posById.get(triggerNodeIds[0])?.y ?? 0 });
+  }
+
+  // Lay reports out in a single lane to the right, ordered by their trigger's vertical position.
+  matches.sort((a, b) => a.anchorY - b.anchorY);
+  const reportX = (matches.length ? maxX + COL : 0);
+  const reportNodes = matches.map((m, i) => ({
+    id: `report::${getEjsonIdString(m.rep._id)}`,
+    type: "reports",
+    position: { x: reportX, y: i * ROW },
+    data: {
+      label: m.rep?.name || m.rep?.key || getEjsonIdString(m.rep._id),
+      description: m.rep?.description || (m.rep?.key ? `key: ${m.rep.key}` : ""),
+    },
+  }));
+  const reportEdges = matches.flatMap((m) => {
+    const repId = `report::${getEjsonIdString(m.rep._id)}`;
+    return m.triggerNodeIds.map((nid) => ({
+      id: `${nid}->${repId}`,
+      source: nid,
+      target: repId,
+      label: "triggers",
+      animated: true,
+      style: REPORT_EDGE_STYLE,
+      labelStyle: EDGE_LABEL_STYLE,
+      labelBgStyle: EDGE_LABEL_BG,
+      labelBgPadding: [6, 3] as [number, number],
+      labelBgBorderRadius: 4,
+    }));
+  });
+
+  return { nodes: [...nodes, ...reportNodes], edges: [...edges, ...reportEdges] };
 }
 
 function timeAgo(iso?: any) {
@@ -205,6 +264,7 @@ function timeAgo(iso?: any) {
 /** Inline workflows list for the home SPA. Reads the active room's `workflows` collection. */
 export default function ChartListView({ roomId }: { roomId?: string | null }) {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [reports, setReports] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Workflow | null>(null);
@@ -228,8 +288,23 @@ export default function ChartListView({ roomId }: { roomId?: string | null }) {
     }
   }, [roomId]);
 
+  // Reports power the trigger links drawn into the read-only flow diagram.
+  const fetchReports = useCallback(async () => {
+    if (!roomId) { setReports([]); return; }
+    try {
+      const res = await fetch(
+        `/api/rooms/${roomId}/collections/reports?limit=500`,
+        { headers: { Authorization: `Bearer ${token()}` } },
+      );
+      const json = await res.json();
+      setReports(Array.isArray(json?.data) ? json.data : []);
+    } catch {
+      setReports([]);
+    }
+  }, [roomId]);
+
   // Reset selection + reload whenever the active room changes.
-  useEffect(() => { setSelected(null); fetchWorkflows(); }, [fetchWorkflows]);
+  useEffect(() => { setSelected(null); fetchWorkflows(); fetchReports(); }, [fetchWorkflows, fetchReports]);
 
   const filtered = workflows.filter((w) => {
     const q = search.toLowerCase();
@@ -238,13 +313,15 @@ export default function ChartListView({ roomId }: { roomId?: string | null }) {
   });
 
   const flow = useMemo(
-    () => (selected ? mapWorkflowToFlow(selected) : null),
-    [selected],
+    () => (selected ? mapWorkflowToFlow(selected, reports) : null),
+    [selected, reports],
   );
 
   // ── Builder view (read-only) ──
   if (selected && flow) {
     const title = getEjsonIdString(selected._id);
+    const reportCount = flow.nodes.filter((n) => String(n.id).startsWith("report::")).length;
+    const wfNodeCount = flow.nodes.length - reportCount;
     return (
       <div className="flex-1 flex flex-col bg-[#080808] overflow-hidden">
         <div className="flex items-center gap-3 px-5 h-12 bg-[#0c0c0c] border-b border-[#1a1a1a] flex-shrink-0">
@@ -262,7 +339,9 @@ export default function ChartListView({ roomId }: { roomId?: string | null }) {
             <span className="text-[12px] text-[#555] max-w-[260px] truncate">{selected.name}</span>
           )}
           <span className="ml-auto text-[11px] text-[#444]">
-            {flow.nodes.length} node{flow.nodes.length !== 1 ? "s" : ""} · view only
+            {wfNodeCount} node{wfNodeCount !== 1 ? "s" : ""}
+            {reportCount > 0 && ` · ${reportCount} report${reportCount !== 1 ? "s" : ""}`}
+            {" · view only"}
           </span>
         </div>
         <div className="flex flex-1 overflow-hidden">
