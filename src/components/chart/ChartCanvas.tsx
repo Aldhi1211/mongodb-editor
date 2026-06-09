@@ -16,7 +16,7 @@ import {
   type Edge,
 } from "@xyflow/react";
 import { useCallback, useRef, useEffect } from "react";
-import { FormNode, ValidationNode, MasterdataNode, PdfNode, ReportsNode } from "./ChartNode";
+import { FormNode, ValidationNode, MasterdataNode, PdfNode, ReportsNode, EndNode } from "./ChartNode";
 import { MousePointer2, Save } from "lucide-react";
 
 const nodeTypes = {
@@ -25,6 +25,7 @@ const nodeTypes = {
   masterdata: MasterdataNode,
   pdf: PdfNode,
   reports: ReportsNode,
+  end: EndNode,
 };
 
 const NODE_COLORS: Record<string, string> = {
@@ -33,6 +34,7 @@ const NODE_COLORS: Record<string, string> = {
   masterdata: "#8b5cf6",
   pdf: "#ef4444",
   reports: "#10b981",
+  end: "#f43f5e",
 };
 
 const LABELS: Record<string, string> = {

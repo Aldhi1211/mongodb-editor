@@ -34,6 +34,8 @@ type Workflow = {
 const EDGE_STYLE = { stroke: "#7c8cf8", strokeWidth: 1.5 };
 /** Dashed green edge for "this node triggers this report" links. */
 const REPORT_EDGE_STYLE = { stroke: "#10b981", strokeWidth: 1.5, strokeDasharray: "5 3" };
+/** Rose edge for terminal paths converging on the End node. */
+const END_EDGE_STYLE = { stroke: "#f43f5e", strokeWidth: 1.5 };
 
 /** Map a workflow node `type` to a registered chart node type. */
 function chartNodeType(rawType: any): string {
@@ -69,6 +71,11 @@ function destNodeId(dest: any): string | null {
   return nid != null ? String(nid) : null;
 }
 
+/** A destination whose `node` is explicitly null → this branch ends the workflow. */
+function isEndDest(dest: any): boolean {
+  return !!dest && typeof dest === "object" && "node" in dest && dest.node == null;
+}
+
 /**
  * Build ReactFlow nodes + edges from a workflow document.
  * - Each workflow node becomes a chart node (title = name, description = preview.subtitle).
@@ -78,6 +85,8 @@ function destNodeId(dest: any): string | null {
  *     · fallback:    defaultDest.node.nodeId           (taken only when no route matches → "else")
  *   Links to the same target are merged into one edge; concrete conditions are joined with " / ".
  * - Uses each node's own `position` when all are present & distinct; otherwise BFS auto-layout.
+ * - Terminal paths (a node with no next step, or a branch whose `dest.node` is null) all
+ *   converge on a single "End" terminator node, with the branch condition kept as the edge label.
  * - Reports whose `triggers` reference a node in this workflow (`{workflowId}.{nodeId}`) are
  *   appended as green nodes in a lane on the right, with a dashed edge from each trigger node.
  */
@@ -105,6 +114,15 @@ function mapWorkflowToFlow(
     if (isElse) e.hasElse = true;
   };
 
+  // Branches whose `dest.node` is explicitly null end the workflow; collected here and later
+  // wired to a single "End" terminator node. `label` is the branch condition (or "else"/null).
+  const endLinks = new Map<string, Set<string>>(); // source -> condition labels
+  const addEnd = (source: string, label: string | null) => {
+    const set = endLinks.get(source) ?? new Set<string>();
+    if (label) set.add(label);
+    endLinks.set(source, set);
+  };
+
   for (const n of wfNodes) {
     const source = String(n?.id);
     const hasRoutes = Array.isArray(n?.routes) && n.routes.length > 0;
@@ -112,20 +130,23 @@ function mapWorkflowToFlow(
     // FORM — single normal next step.
     const routingDest = destNodeId(n?.routing?.defaultDest);
     if (routingDest) addLink(source, routingDest, null, false);
+    else if (isEndDest(n?.routing?.defaultDest)) addEnd(source, null);
 
     // VALIDATION — conditional routes are matched first.
     if (hasRoutes) {
       for (const r of n.routes) {
-        const t = destNodeId(r?.dest);
-        if (!t) continue;
         const v = r?.value != null ? String(r.value) : "";
-        addLink(source, t, v && !v.includes("${") ? v : null, false);
+        const cond = v && !v.includes("${") ? v : null;
+        const t = destNodeId(r?.dest);
+        if (t) addLink(source, t, cond, false);
+        else if (isEndDest(r?.dest)) addEnd(source, cond);
       }
     }
 
     // Fallback: defaultDest is the "else" branch only when routes exist; otherwise just the next step.
     const topDest = destNodeId(n?.defaultDest);
     if (topDest) addLink(source, topDest, null, hasRoutes);
+    else if (isEndDest(n?.defaultDest)) addEnd(source, hasRoutes ? "else" : null);
   }
 
   const edges = [...edgeMap.values()].map((e) => {
@@ -173,9 +194,9 @@ function mapWorkflowToFlow(
   }
   ids.forEach((id) => { if (depth[id] === undefined) depth[id] = 0; }); // disconnected → col 0
 
-  // A node with no outgoing workflow edge is a terminal/end step
-  // (e.g. routing.defaultDest.node === null, or no routes match).
+  // A node with no outgoing workflow edge is also a terminal step → wire it to End too.
   const sourceIds = new Set(edges.map((e) => e.source));
+  ids.forEach((id) => { if (!sourceIds.has(id) && !endLinks.has(id)) addEnd(id, null); });
 
   const COL = 340;
   const ROW = 200;
@@ -193,7 +214,6 @@ function mapWorkflowToFlow(
       data: {
         label: n?.name || n?.locTitle || n?.key || id,
         description: n?.description || n?.preview?.subtitle || "",
-        terminal: !sourceIds.has(id),
       },
     };
   });
@@ -206,6 +226,31 @@ function mapWorkflowToFlow(
     nodes.map((n) => [n.id, n.position as { x: number; y: number }]),
   );
   const maxX = nodes.reduce((m, n) => Math.max(m, (n.position as { x: number }).x), 0);
+
+  // ── End terminator: one node every terminal path/branch points to ──
+  const endSources = [...endLinks.keys()].filter((s) => idSet.has(s));
+  const END_ID = "__end__";
+  const endY = endSources.length
+    ? endSources.reduce((a, s) => a + (posById.get(s)?.y ?? 0), 0) / endSources.length
+    : 0;
+  const endNodes = endSources.length
+    ? [{ id: END_ID, type: "end", position: { x: maxX + COL, y: endY }, data: { label: "End" } }]
+    : [];
+  const endEdges = endSources.map((s) => {
+    const label = [...(endLinks.get(s) ?? [])].join(" / ") || undefined;
+    return {
+      id: `${s}->${END_ID}`,
+      source: s,
+      target: END_ID,
+      ...(label ? { label } : {}),
+      animated: false,
+      style: END_EDGE_STYLE,
+      labelStyle: EDGE_LABEL_STYLE,
+      labelBgStyle: EDGE_LABEL_BG,
+      labelBgPadding: [6, 3] as [number, number],
+      labelBgBorderRadius: 4,
+    };
+  });
 
   type RepMatch = { rep: Workflow; triggerNodeIds: string[]; anchorY: number };
   const matches: RepMatch[] = [];
@@ -222,9 +267,9 @@ function mapWorkflowToFlow(
     matches.push({ rep, triggerNodeIds, anchorY: posById.get(triggerNodeIds[0])?.y ?? 0 });
   }
 
-  // Lay reports out in a single lane to the right, ordered by their trigger's vertical position.
+  // Lay reports out in a single lane to the right (past the End column), ordered by trigger y.
   matches.sort((a, b) => a.anchorY - b.anchorY);
-  const reportX = (matches.length ? maxX + COL : 0);
+  const reportX = maxX + COL + (endNodes.length ? COL : 0);
   const reportNodes = matches.map((m, i) => ({
     id: `report::${getEjsonIdString(m.rep._id)}`,
     type: "reports",
@@ -250,7 +295,10 @@ function mapWorkflowToFlow(
     }));
   });
 
-  return { nodes: [...nodes, ...reportNodes], edges: [...edges, ...reportEdges] };
+  return {
+    nodes: [...nodes, ...endNodes, ...reportNodes],
+    edges: [...edges, ...endEdges, ...reportEdges],
+  };
 }
 
 function timeAgo(iso?: any) {
@@ -326,7 +374,8 @@ export default function ChartListView({ roomId }: { roomId?: string | null }) {
   if (selected && flow) {
     const title = getEjsonIdString(selected._id);
     const reportCount = flow.nodes.filter((n) => String(n.id).startsWith("report::")).length;
-    const wfNodeCount = flow.nodes.length - reportCount;
+    const endCount = flow.nodes.filter((n) => n.id === "__end__").length;
+    const wfNodeCount = flow.nodes.length - reportCount - endCount;
     return (
       <div className="flex-1 flex flex-col bg-[#080808] overflow-hidden">
         <div className="flex items-center gap-3 px-5 h-12 bg-[#0c0c0c] border-b border-[#1a1a1a] flex-shrink-0">

@@ -132,14 +132,6 @@ function ChartNodeBase({ id, data, selected, nodeType }: NodeProps & { nodeType:
             </button>
           </div>
         )}
-
-        {/* Terminal/end step marker (no outgoing destination) */}
-        {data?.terminal ? (
-          <span className="flex-shrink-0 flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-rose-300 bg-rose-500/10 border border-rose-500/30 rounded px-1.5 py-0.5">
-            <Flag className="w-2.5 h-2.5" />
-            End
-          </span>
-        ) : null}
       </div>
 
       {/* ── Body / Description ── */}
@@ -205,3 +197,18 @@ export const ValidationNode = (props: NodeProps) => <ChartNodeBase {...props} no
 export const MasterdataNode = (props: NodeProps) => <ChartNodeBase {...props} nodeType="masterdata" />;
 export const PdfNode        = (props: NodeProps) => <ChartNodeBase {...props} nodeType="pdf" />;
 export const ReportsNode    = (props: NodeProps) => <ChartNodeBase {...props} nodeType="reports" />;
+
+/** Compact terminator that all end-of-path / null-destination branches converge on. */
+export function EndNode() {
+  return (
+    <div className="flex items-center gap-1.5 rounded-full border-2 border-rose-500/40 bg-rose-500/10 px-3.5 py-2">
+      <Handle
+        type="target"
+        position={Position.Left}
+        style={{ background: "#111", border: "2px solid #f43f5e", width: 10, height: 10 }}
+      />
+      <Flag className="w-3 h-3 text-rose-400" />
+      <span className="text-[11px] font-bold uppercase tracking-wider text-rose-300">End</span>
+    </div>
+  );
+}
