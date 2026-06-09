@@ -214,6 +214,7 @@ function mapWorkflowToFlow(
       data: {
         label: n?.name || n?.locTitle || n?.key || id,
         description: n?.description || n?.preview?.subtitle || "",
+        fields: Array.isArray(n?.fields) ? n.fields : [],
       },
     };
   });
@@ -277,6 +278,7 @@ function mapWorkflowToFlow(
     data: {
       label: m.rep?.name || m.rep?.key || getEjsonIdString(m.rep._id),
       description: m.rep?.description || (m.rep?.key ? `key: ${m.rep.key}` : ""),
+      fields: Array.isArray(m.rep?.fields) ? m.rep.fields : [],
     },
   }));
   const reportEdges = matches.flatMap((m) => {

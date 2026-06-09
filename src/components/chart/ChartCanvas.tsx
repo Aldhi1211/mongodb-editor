@@ -15,9 +15,10 @@ import {
   type Node,
   type Edge,
 } from "@xyflow/react";
-import { useCallback, useRef, useEffect } from "react";
+import { useCallback, useRef, useEffect, useState } from "react";
 import { FormNode, ValidationNode, MasterdataNode, PdfNode, ReportsNode, EndNode } from "./ChartNode";
 import { MousePointer2, Save } from "lucide-react";
+import NodeFieldsPanel from "./NodeFieldsPanel";
 
 const nodeTypes = {
   form: FormNode,
@@ -60,14 +61,21 @@ export default function ChartCanvas({ initialData, onSave, readOnly = false }: P
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>(initialData?.nodes ?? []);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialData?.edges ?? []);
+  const [fieldsNode, setFieldsNode] = useState<Node | null>(null);
   const { screenToFlowPosition } = useReactFlow();
 
   useEffect(() => {
     if (initialData) {
       setNodes(initialData.nodes ?? []);
       setEdges(initialData.edges ?? []);
+      setFieldsNode(null);
     }
   }, [initialData]);
+
+  // Clicking a node that carries `fields` opens the inspector panel.
+  const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    setFieldsNode(node?.data && "fields" in node.data ? node : null);
+  }, []);
 
   const onConnect = useCallback(
     (params: Connection) =>
@@ -128,6 +136,7 @@ export default function ChartCanvas({ initialData, onSave, readOnly = false }: P
         onConnect={onConnect}
         onDrop={onDrop}
         onDragOver={onDragOver}
+        onNodeClick={onNodeClick}
         nodeTypes={nodeTypes}
         defaultEdgeOptions={{ animated: true, style: EDGE_STYLE }}
         style={{ backgroundColor: "#080808" }}
@@ -186,6 +195,10 @@ export default function ChartCanvas({ initialData, onSave, readOnly = false }: P
           </Panel>
         )}
       </ReactFlow>
+
+      {fieldsNode && (
+        <NodeFieldsPanel node={fieldsNode} onClose={() => setFieldsNode(null)} />
+      )}
     </div>
   );
 }
