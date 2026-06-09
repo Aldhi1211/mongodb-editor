@@ -173,6 +173,10 @@ function mapWorkflowToFlow(
   }
   ids.forEach((id) => { if (depth[id] === undefined) depth[id] = 0; }); // disconnected → col 0
 
+  // A node with no outgoing workflow edge is a terminal/end step
+  // (e.g. routing.defaultDest.node === null, or no routes match).
+  const sourceIds = new Set(edges.map((e) => e.source));
+
   const COL = 340;
   const ROW = 200;
   const rowCount: Record<number, number> = {};
@@ -189,6 +193,7 @@ function mapWorkflowToFlow(
       data: {
         label: n?.name || n?.locTitle || n?.key || id,
         description: n?.description || n?.preview?.subtitle || "",
+        terminal: !sourceIds.has(id),
       },
     };
   });

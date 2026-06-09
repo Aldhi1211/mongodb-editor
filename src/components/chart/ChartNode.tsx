@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Handle, Position, type NodeProps, useReactFlow } from "@xyflow/react";
-import { FileText, Database, FileDown, BarChart3, ShieldCheck, Pencil, Check, X } from "lucide-react";
+import { FileText, Database, FileDown, BarChart3, ShieldCheck, Pencil, Check, X, Flag } from "lucide-react";
 
 type NodeConfig = { label: string; Icon: React.ElementType; color: string };
 
@@ -132,6 +132,14 @@ function ChartNodeBase({ id, data, selected, nodeType }: NodeProps & { nodeType:
             </button>
           </div>
         )}
+
+        {/* Terminal/end step marker (no outgoing destination) */}
+        {data?.terminal ? (
+          <span className="flex-shrink-0 flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-rose-300 bg-rose-500/10 border border-rose-500/30 rounded px-1.5 py-0.5">
+            <Flag className="w-2.5 h-2.5" />
+            End
+          </span>
+        ) : null}
       </div>
 
       {/* ── Body / Description ── */}
