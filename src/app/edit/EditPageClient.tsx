@@ -36,6 +36,16 @@ export default function EditPageClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // This route is reached via "Edit in New Tab", so it has no in-app history to
+  // go back to. On close (back / cancel / after save) navigate to the home SPA
+  // with this room + collection restored — opening the collection's document table.
+  const handleClose = () => {
+    if (roomId) sessionStorage.setItem("nav:roomId", roomId);
+    if (collection) sessionStorage.setItem("nav:collection", collection);
+    else sessionStorage.removeItem("nav:collection");
+    router.push("/");
+  };
+
   return (
     <div className="h-screen">
       <DocumentEditor
@@ -44,7 +54,7 @@ export default function EditPageClient() {
         isNew={isNew}
         docId={docId}
         initialDoc={initialDoc}
-        onClose={() => router.back()}
+        onClose={handleClose}
       />
     </div>
   );
