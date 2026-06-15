@@ -127,25 +127,51 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer",
 
   const table = useReactTable({ data, columns, getCoreRowModel: getCoreRowModel() });
 
-  // Derive a field list (name + inferred type) from the loaded documents for the filter builder.
+  // Derive a field list (name + inferred type) from the loaded documents for the
+  // filter builder. Nested plain objects are flattened into dot-notation paths
+  // (e.g. `tasks.formData`) so they're selectable in the visual filter.
   const fields = useMemo<FieldDef[]>(() => {
-    const sample = data[0];
-    if (!sample) return [];
-    return Object.keys(sample).map((name) => {
-      const v = sample[name];
-      let type = "string";
-      if (name === "_id") type = "objectId";
-      else if (typeof v === "number") type = "number";
-      else if (typeof v === "boolean") type = "boolean";
-      else if (Array.isArray(v)) type = "array";
-      else if (v && typeof v === "object") {
-        if ("$oid" in v) type = "objectId";
-        else if ("$date" in v) type = "date";
-        else if ("$numberInt" in v || "$numberLong" in v || "$numberDouble" in v || "$numberDecimal" in v) type = "number";
-        else type = "object";
+    const MAX_DEPTH = 4; // how deep to descend into nested objects
+    const SAMPLE_SIZE = 25; // docs to scan so fields absent from doc[0] still surface
+
+    // A serialized EJSON value is a "BSON wrapper" if it's an object whose only
+    // shape is a single $-prefixed type key — treat those as scalar leaves.
+    const bsonType = (v: any): string | null => {
+      if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+      if ("$oid" in v) return "objectId";
+      if ("$date" in v) return "date";
+      if ("$numberInt" in v || "$numberLong" in v || "$numberDouble" in v || "$numberDecimal" in v) return "number";
+      if ("$timestamp" in v) return "date";
+      if ("$binary" in v || "$regularExpression" in v || "$regex" in v) return "string";
+      return null;
+    };
+
+    const inferType = (name: string, v: any): string => {
+      if (name === "_id" || name.endsWith("._id")) return "objectId";
+      if (typeof v === "number") return "number";
+      if (typeof v === "boolean") return "boolean";
+      if (Array.isArray(v)) return "array";
+      if (v && typeof v === "object") return bsonType(v) ?? "object";
+      return "string";
+    };
+
+    const seen = new Map<string, string>(); // path -> type (first non-empty value wins)
+    const walk = (obj: Record<string, any>, prefix: string, depth: number) => {
+      for (const key of Object.keys(obj)) {
+        const path = prefix ? `${prefix}.${key}` : key;
+        const v = obj[key];
+        const type = inferType(path, v);
+        if (!seen.has(path)) seen.set(path, type);
+        // Recurse into plain (non-BSON, non-array) objects, capping depth.
+        if (type === "object" && depth < MAX_DEPTH) walk(v, path, depth + 1);
       }
-      return { name, type };
-    });
+    };
+
+    for (const doc of data.slice(0, SAMPLE_SIZE)) {
+      if (doc && typeof doc === "object") walk(doc, "", 0);
+    }
+
+    return Array.from(seen, ([name, type]) => ({ name, type }));
   }, [data]);
 
   const openEdit = (doc: any) => onEdit?.(doc);
