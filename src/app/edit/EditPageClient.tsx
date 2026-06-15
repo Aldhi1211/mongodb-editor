@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { EJSON } from "bson";
 import DocumentEditor from "@/components/documents/DocumentEditor";
 
@@ -12,7 +12,6 @@ import DocumentEditor from "@/components/documents/DocumentEditor";
  * <DocumentEditor> directly.
  */
 export default function EditPageClient() {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   const roomId = searchParams.get("roomId") ?? "";
@@ -39,11 +38,13 @@ export default function EditPageClient() {
   // This route is reached via "Edit in New Tab", so it has no in-app history to
   // go back to. On close (back / cancel / after save) navigate to the home SPA
   // with this room + collection restored — opening the collection's document table.
+  // Use a real navigation (not router.push) so it fires reliably even when called
+  // right after the async save; sessionStorage survives a same-tab reload.
   const handleClose = () => {
     if (roomId) sessionStorage.setItem("nav:roomId", roomId);
     if (collection) sessionStorage.setItem("nav:collection", collection);
     else sessionStorage.removeItem("nav:collection");
-    router.push("/");
+    window.location.assign("/");
   };
 
   return (
