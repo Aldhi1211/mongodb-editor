@@ -176,6 +176,18 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer",
 
   const openEdit = (doc: any) => onEdit?.(doc);
 
+  // Open the standalone /edit route in a new browser tab. sessionStorage isn't
+  // shared across tabs, so hand the document off via localStorage (canonical
+  // EJSON — table rows are already serialized with relaxed:false).
+  const openEditNewTab = (doc: any) => {
+    const docId = getEjsonIdString(doc._id);
+    try {
+      localStorage.setItem("edit_doc", JSON.stringify(doc));
+    } catch { /* ignore quota / serialization errors */ }
+    const params = new URLSearchParams({ roomId, collection, docId });
+    window.open(`/edit?${params.toString()}`, "_blank");
+  };
+
   // Split "arg1, arg2" at the first top-level comma (handles nested objects/arrays)
   const splitTwoArgs = (inner: string): [string, string] | null => {
     let depth = 0;
@@ -458,7 +470,9 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer",
                   key={row.id}
                   className={`group cursor-pointer ${isCtx ? "bg-[#111]" : "hover:bg-gray-100"}`}
                   onClick={() => {
-                    if (canWrite) openEdit(row.original);
+                    // Plain click selects the row (checkbox); editing is via the
+                    // right-click menu. Viewers can't select, so they get a preview.
+                    if (canWrite) toggleRow(getEjsonIdString(row.original._id));
                     else setViewDoc(row.original);
                   }}
                   onContextMenu={(e) => {
@@ -538,6 +552,7 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer",
         }}
         onView={() => setViewDoc(contextRow)}
         onUpdate={() => openEdit(contextRow)}
+        onEditNewTab={() => openEditNewTab(contextRow)}
         onRefresh={refreshDocuments}
         onClose={() => { setMenuPos(null); setContextRow(null); }}
       />

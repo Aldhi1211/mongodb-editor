@@ -1,8 +1,8 @@
 import { useState } from "react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
-import { Loader2, Eye, Pencil, Plus, Trash2, RefreshCw } from "lucide-react"
+import { Loader2, Eye, Pencil, ExternalLink, Plus, Trash2, RefreshCw } from "lucide-react"
 
-export default function DocumentContextMenu({ pos, onDelete, onUpdate, onAdd, onView, onRefresh, onClose, userRole = "viewer" }: any) {
+export default function DocumentContextMenu({ pos, onDelete, onUpdate, onEditNewTab, onAdd, onView, onRefresh, onClose, userRole = "viewer" }: any) {
     const [loading, setLoading] = useState(false)
 
     if (!pos) return null
@@ -19,7 +19,7 @@ export default function DocumentContextMenu({ pos, onDelete, onUpdate, onAdd, on
     }
 
     const MENU_W = 160 // w-40
-    const MENU_H = userRole !== "viewer" ? 200 : 110
+    const MENU_H = userRole !== "viewer" ? 240 : 110
     const x = Math.min(pos.x, window.innerWidth - MENU_W - 8)
     const y = Math.min(pos.y, window.innerHeight - MENU_H - 8)
 
@@ -45,6 +45,11 @@ export default function DocumentContextMenu({ pos, onDelete, onUpdate, onAdd, on
                 {userRole !== "viewer" && (
                     <DropdownMenuItem onClick={onUpdate} className="flex items-center gap-2">
                         <Pencil className="w-4 h-4" /> Update
+                    </DropdownMenuItem>
+                )}
+                {userRole !== "viewer" && (
+                    <DropdownMenuItem onClick={() => { onEditNewTab?.(); onClose(); }} className="flex items-center gap-2">
+                        <ExternalLink className="w-4 h-4" /> Edit in New Tab
                     </DropdownMenuItem>
                 )}
                 <DropdownMenuItem

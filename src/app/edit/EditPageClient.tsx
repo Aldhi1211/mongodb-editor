@@ -22,8 +22,11 @@ export default function EditPageClient() {
 
   const initialDoc = useMemo(() => {
     if (isNew) return null;
-    const raw = sessionStorage.getItem("edit_doc");
+    // "Edit in New Tab" hands the document off via localStorage (sessionStorage
+    // isn't shared across tabs); fall back to sessionStorage for same-tab opens.
+    const raw = localStorage.getItem("edit_doc") ?? sessionStorage.getItem("edit_doc");
     if (!raw) return null;
+    localStorage.removeItem("edit_doc");
     sessionStorage.removeItem("edit_doc");
     try {
       return EJSON.parse(raw);
