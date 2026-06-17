@@ -107,7 +107,12 @@ These four behaviors must always hold. When you touch a mutation, the editor, or
 
 3. **Save, or discarding an edit/add, auto-deletes the draft.** On a successful save **and** on "Discard" in the unsaved-changes dialog, `DocumentEditor` calls `localStorage.removeItem(draftKey)` and sets `savedRef.current = true`. `savedRef` then guards the `beforeunload` and unmount handlers so a saved/discarded draft is **not** resurrected on the way out (critical now that new-tab close does a full `window.location` navigation, which fires `beforeunload`). The dialog's "Save Draft" button is the one path that intentionally keeps the draft.
 
-4. **Every update / add (and delete) auto-refreshes the affected collection.** After a mutation: the API calls `broadcast(...)` on the collection SSE stream (refreshes every other client/tab), and the saving tab dispatches a `mongoedit:saved` CustomEvent (refreshes the same tab's `DocumentTable`, `CollectionList` counts, navbar, and drafts list). Never mutate without triggering both.
+4. **Every update / add (and delete) auto-refreshes the affected collection.** Three refresh channels, because no single one covers every case:
+   - **Same tab**: the saving tab dispatches a `mongoedit:saved` CustomEvent → `useDocuments`, `CollectionList` counts, navbar, drafts list re-fetch.
+   - **Other tabs (same browser)**: `DocumentEditor.handleSave` writes `localStorage["mongoedit:saved:ping"] = { roomId, collection, t }`; `useDocuments` listens for the `storage` event and re-fetches when it matches its collection. This is what refreshes the original tab after an **"Edit in New Tab"** save — the CustomEvent is window-scoped and SSE can't be relied on (its broadcaster is per-instance/in-memory).
+   - **Other clients**: the API calls `broadcast(...)` on the collection SSE stream.
+
+   Never mutate without keeping these intact.
 
 ## Critical BSON Rules
 

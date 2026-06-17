@@ -221,6 +221,16 @@ export default function DocumentEditor({
       }
 
       window.dispatchEvent(new CustomEvent("mongoedit:saved"));
+      // Cross-tab refresh: mongoedit:saved is window-scoped, so signal other tabs
+      // (e.g. the collection table that opened this via "Edit in New Tab") through
+      // localStorage — the `storage` event fires in every *other* tab. SSE can't be
+      // relied on for this since its broadcaster is per-instance/in-memory.
+      try {
+        localStorage.setItem(
+          "mongoedit:saved:ping",
+          JSON.stringify({ roomId, collection, t: Date.now() }),
+        );
+      } catch { /* ignore quota errors */ }
       onSaved?.();
       onClose();
     } catch (e: any) {

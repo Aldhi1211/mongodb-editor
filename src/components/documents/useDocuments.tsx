@@ -83,13 +83,25 @@ export function useDocuments(roomId: string, collection: string) {
     );
     es.onmessage = () => fetchData(page);
 
-    // Refresh when the edit page saves a document and navigates back
+    // Refresh when the edit page saves a document and navigates back (same tab)
     const handleSaved = () => fetchData(pageRef.current);
     window.addEventListener("mongoedit:saved", handleSaved);
+
+    // Cross-tab refresh: a save in another tab (e.g. "Edit in New Tab") writes
+    // mongoedit:saved:ping; the storage event fires here if it's our collection.
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key !== "mongoedit:saved:ping" || !e.newValue) return;
+      try {
+        const p = JSON.parse(e.newValue);
+        if (p.roomId === roomId && p.collection === collection) fetchData(pageRef.current);
+      } catch { /* ignore malformed ping */ }
+    };
+    window.addEventListener("storage", handleStorage);
 
     return () => {
       es.close();
       window.removeEventListener("mongoedit:saved", handleSaved);
+      window.removeEventListener("storage", handleStorage);
     };
   }, [roomId, collection]);
 
