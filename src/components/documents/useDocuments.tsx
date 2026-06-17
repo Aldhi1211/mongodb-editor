@@ -13,7 +13,12 @@ export function useDocuments(roomId: string, collection: string) {
   const pageRef = useRef(1);
   useEffect(() => { pageRef.current = page; }, [page]);
 
+  // Last active query (filter + sort) so auto-refresh can re-run it instead of
+  // reverting a filtered view back to the unfiltered collection. null = unfiltered.
+  const lastQueryRef = useRef<{ filter: any; sort?: any } | null>(null);
+
   const fetchData = async (p = page) => {
+    lastQueryRef.current = null;
     setIsFetching(true);
     try {
       const res = await fetch(
@@ -29,6 +34,8 @@ export function useDocuments(roomId: string, collection: string) {
   };
 
   const queryData = async (filter: any, p = 1, sort?: any) => {
+    const filtered = (filter && Object.keys(filter).length > 0) || !!sort;
+    lastQueryRef.current = filtered ? { filter, sort } : null;
     setIsFetching(true);
     try {
       const encodedFilter = encodeURIComponent(
@@ -78,13 +85,21 @@ export function useDocuments(roomId: string, collection: string) {
     setPage(1);
     fetchData(1);
 
+    // Re-run the active query (filtered or not) so auto-refresh keeps the
+    // current filter/sort instead of reverting to the unfiltered collection.
+    const refresh = () => {
+      const q = lastQueryRef.current;
+      if (q) return queryData(q.filter, pageRef.current, q.sort);
+      return fetchData(pageRef.current);
+    };
+
     const es = new EventSource(
       `/api/rooms/${roomId}/collections/${collection}/stream`,
     );
-    es.onmessage = () => fetchData(page);
+    es.onmessage = () => refresh();
 
     // Refresh when the edit page saves a document and navigates back (same tab)
-    const handleSaved = () => fetchData(pageRef.current);
+    const handleSaved = () => refresh();
     window.addEventListener("mongoedit:saved", handleSaved);
 
     // Cross-tab refresh: a save in another tab (e.g. "Edit in New Tab") writes
@@ -93,7 +108,7 @@ export function useDocuments(roomId: string, collection: string) {
       if (e.key !== "mongoedit:saved:ping" || !e.newValue) return;
       try {
         const p = JSON.parse(e.newValue);
-        if (p.roomId === roomId && p.collection === collection) fetchData(pageRef.current);
+        if (p.roomId === roomId && p.collection === collection) refresh();
       } catch { /* ignore malformed ping */ }
     };
     window.addEventListener("storage", handleStorage);
