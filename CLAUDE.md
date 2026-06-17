@@ -80,9 +80,11 @@ src/
 
 **Document query**: `DocumentTable` (Filter or Query mode) → `useDocuments.queryData(filter)` → same GET endpoint with `?filter=<EJSON-encoded>`
 
-**Document edit**: `DocumentTable.openEdit(doc)` → `sessionStorage.setItem("edit_doc", EJSON.stringify(doc))` → navigate to `/edit?roomId=&collection=&docId=` → `EditPageClient` reads sessionStorage on mount
+**Document edit (inline)**: `DocumentTable` right-click → "Update" → `onEdit(doc)` → home SPA renders `<DocumentEditor>` inline with `initialDoc`.
 
-**Document save**: `EditPageClient.handleSave()` → `PUT /api/rooms/[roomId]/collections/[collectionName]/[documentId]` → dispatch `mongoedit:saved` CustomEvent → `router.back()`
+**Document edit (new tab)**: `DocumentTable` right-click → "Edit in New Tab" → `localStorage.setItem("edit_doc", …)` (localStorage, not sessionStorage — it must cross tabs) → `window.open("/edit?roomId=&collection=&docId=")` → `EditPageClient` (auth-guarded) reads `edit_doc`. On close/save it does `window.location.assign("/")` with `nav:roomId`/`nav:collection` set, so the home SPA reopens the collection.
+
+**Document save**: `DocumentEditor.handleSave()` → `POST`/`PUT /api/rooms/[roomId]/collections/[collectionName]/[documentId]` → clears draft + sets `savedRef` → dispatch `mongoedit:saved` CustomEvent → `onClose()`.
 
 **Draft system**:
 - Add mode key: `mongoedit:draft:{roomId}:{collection}`
@@ -91,6 +93,21 @@ src/
 - `hasChangesRef` guards all saves — drafts are only written when content actually changed from `initialValueRef`
 
 **Real-time refresh**: SSE stream per collection → `useDocuments` `es.onmessage` → `fetchData()`. Also `mongoedit:saved` CustomEvent for same-tab refresh after edit-page save.
+
+## Core Invariants
+
+These four behaviors must always hold. When you touch a mutation, the editor, or the table, keep them intact.
+
+1. **Every create / update / delete writes an audit log.** No mutation may skip the `workflowbuilder_core.audit_logs` write — single insert/update/delete and bulk `deleteOne`/`deleteMany`/`updateOne`/`updateMany`, plus collection-level `create`/`drop`/`rename`. See [Audit Log Shape](#audit-log-shape). Update/delete also writes a `backups` snapshot.
+
+2. **Every edit / add auto-saves a draft.** `DocumentEditor` debounces (500ms) the current editor content to localStorage while typing, and also persists on `beforeunload` / unmount.
+   - Add key: `mongoedit:draft:{roomId}:{collection}`
+   - Edit key: `mongoedit:editdraft:{roomId}:{docId}` (stores `originalDoc` + `collection`)
+   - **Only when changed**: `hasChangesRef` must be `true` (content differs from `initialValueRef`). Never write a draft for an unchanged document — it corrupts existing drafts.
+
+3. **Save, or discarding an edit/add, auto-deletes the draft.** On a successful save **and** on "Discard" in the unsaved-changes dialog, `DocumentEditor` calls `localStorage.removeItem(draftKey)` and sets `savedRef.current = true`. `savedRef` then guards the `beforeunload` and unmount handlers so a saved/discarded draft is **not** resurrected on the way out (critical now that new-tab close does a full `window.location` navigation, which fires `beforeunload`). The dialog's "Save Draft" button is the one path that intentionally keeps the draft.
+
+4. **Every update / add (and delete) auto-refreshes the affected collection.** After a mutation: the API calls `broadcast(...)` on the collection SSE stream (refreshes every other client/tab), and the saving tab dispatches a `mongoedit:saved` CustomEvent (refreshes the same tab's `DocumentTable`, `CollectionList` counts, navbar, and drafts list). Never mutate without triggering both.
 
 ## Critical BSON Rules
 
