@@ -24,6 +24,9 @@ type ParsedQuery =
 export default function DocumentTable({ roomId, collection, userRole = "viewer", cluster, onEdit, onNew, onNavigateCluster }: any) {
   const canWrite = userRole !== "viewer";
   const canDelete = userRole === "owner" || userRole === "admin";
+  // Stable callback for useDocuments' auto-refresh triggers; refreshRef always
+  // points at the latest refreshDocuments so the active filter is respected.
+  const refreshRef = useRef<() => void>(() => {});
   const {
     data,
     fetchData,
@@ -34,7 +37,7 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer",
     total,
     limit,
     isFetching,
-  } = useDocuments(roomId, collection);
+  } = useDocuments(roomId, collection, () => refreshRef.current());
 
   const [isJsonViewOpen, setIsJsonViewOpen] = useState(false);
   const [viewDoc, setViewDoc] = useState<any>(null);
@@ -277,6 +280,8 @@ export default function DocumentTable({ roomId, collection, userRole = "viewer",
     if (activeFilter) await queryData(activeFilter, page);
     else await fetchData(page);
   };
+  // Expose the latest refreshDocuments to useDocuments' auto-refresh triggers.
+  refreshRef.current = refreshDocuments;
 
   const executeBulkOp = async (op: ParsedQuery) => {
     if (op.operation === "find") return;

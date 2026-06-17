@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { EJSON } from "bson";
 
-export function useDocuments(roomId: string, collection: string) {
+export function useDocuments(
+  roomId: string,
+  collection: string,
+  // Called by the auto-refresh triggers (SSE / mongoedit:saved / cross-tab) so the
+  // owner (DocumentTable) can re-fetch while honouring its active filter. Falls
+  // back to a plain re-fetch when not provided.
+  onRefresh?: () => void,
+) {
   const [data, setData] = useState<any[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -13,12 +20,12 @@ export function useDocuments(roomId: string, collection: string) {
   const pageRef = useRef(1);
   useEffect(() => { pageRef.current = page; }, [page]);
 
-  // Last active query (filter + sort) so auto-refresh can re-run it instead of
-  // reverting a filtered view back to the unfiltered collection. null = unfiltered.
-  const lastQueryRef = useRef<{ filter: any; sort?: any } | null>(null);
+  // Keep the latest onRefresh so the (mount-bound) listeners always call the
+  // current closure — which reads DocumentTable's up-to-date activeFilter.
+  const onRefreshRef = useRef(onRefresh);
+  onRefreshRef.current = onRefresh;
 
   const fetchData = async (p = page) => {
-    lastQueryRef.current = null;
     setIsFetching(true);
     try {
       const res = await fetch(
@@ -34,8 +41,6 @@ export function useDocuments(roomId: string, collection: string) {
   };
 
   const queryData = async (filter: any, p = 1, sort?: any) => {
-    const filtered = (filter && Object.keys(filter).length > 0) || !!sort;
-    lastQueryRef.current = filtered ? { filter, sort } : null;
     setIsFetching(true);
     try {
       const encodedFilter = encodeURIComponent(
@@ -85,12 +90,11 @@ export function useDocuments(roomId: string, collection: string) {
     setPage(1);
     fetchData(1);
 
-    // Re-run the active query (filtered or not) so auto-refresh keeps the
-    // current filter/sort instead of reverting to the unfiltered collection.
+    // Delegate to the owner's refresh (honours the active filter) when provided,
+    // otherwise fall back to a plain re-fetch of the current page.
     const refresh = () => {
-      const q = lastQueryRef.current;
-      if (q) return queryData(q.filter, pageRef.current, q.sort);
-      return fetchData(pageRef.current);
+      if (onRefreshRef.current) onRefreshRef.current();
+      else fetchData(pageRef.current);
     };
 
     const es = new EventSource(
