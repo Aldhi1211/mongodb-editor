@@ -135,6 +135,7 @@ export default function DocumentEditor({
   useEffect(() => {
     if (!draftEnabled) return;
     const handler = () => {
+      if (savedRef.current) return; // already saved/discarded — don't resurrect the draft
       if (!hasChangesRef.current) return;
       const data: Record<string, any> = { value: valueRef.current, savedAt: new Date().toISOString() };
       if (!isNew && originalDocRef.current) {
