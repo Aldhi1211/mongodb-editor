@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { jwtDecode } from "jwt-decode";
 import { EJSON } from "bson";
 import DocumentEditor from "@/components/documents/DocumentEditor";
 
@@ -12,7 +13,28 @@ import DocumentEditor from "@/components/documents/DocumentEditor";
  * <DocumentEditor> directly.
  */
 export default function EditPageClient() {
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const [authed, setAuthed] = useState(false);
+
+  // Auth guard: /edit is directly linkable, so verify the JWT before rendering
+  // the editor — otherwise an unauthenticated visitor could open it.
+  useEffect(() => {
+    const t = localStorage.getItem("token");
+    if (!t) { router.replace("/login"); return; }
+    try {
+      const decoded: any = jwtDecode(t);
+      if (decoded.exp * 1000 < Date.now()) {
+        localStorage.removeItem("token");
+        router.replace("/login");
+        return;
+      }
+      setAuthed(true);
+    } catch {
+      localStorage.removeItem("token");
+      router.replace("/login");
+    }
+  }, [router]);
 
   const roomId = searchParams.get("roomId") ?? "";
   const collection = searchParams.get("collection") ?? "";
@@ -46,6 +68,8 @@ export default function EditPageClient() {
     else sessionStorage.removeItem("nav:collection");
     window.location.assign("/");
   };
+
+  if (!authed) return null;
 
   return (
     <div className="h-screen">
