@@ -7,7 +7,7 @@ import {
   exchangeCodeForToken,
   fetchVerifiedEmail,
 } from "@/lib/oauth";
-import { normalizeEmail, emailMatch } from "@/lib/email";
+import { normalizeEmail } from "@/lib/email";
 
 export async function GET(
   req: NextRequest,
@@ -46,7 +46,7 @@ export async function GET(
     const client = await clientPromise;
     const db = client.db("workflowbuilder_auth");
 
-    let user = await db.collection("users").findOne({ email: emailMatch(email) });
+    let user = await db.collection("users").findOne({ email });
     if (!user) {
       const doc = {
         email,

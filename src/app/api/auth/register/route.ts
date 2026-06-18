@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import clientPromise from '../../../../lib/mongodb'
-import { normalizeEmail, emailMatch } from '@/lib/email'
+import { normalizeEmail } from '@/lib/email'
 
 export async function POST(req: Request) {
     const { email: rawEmail, password } = await req.json()
@@ -16,8 +16,7 @@ export async function POST(req: Request) {
     const client = await clientPromise
     const db = client.db('workflowbuilder_auth')
 
-    // Case-insensitive check so we don't create a duplicate of an existing mixed-case row.
-    const existing = await db.collection('users').findOne({ email: emailMatch(email) })
+    const existing = await db.collection('users').findOne({ email })
     if (existing) {
         return NextResponse.json({ error: 'Email already registered' }, { status: 409 })
     }

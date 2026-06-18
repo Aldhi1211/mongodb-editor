@@ -1,22 +1,10 @@
-// Email normalization + matching helpers.
+// Email normalization helper.
 //
-// We store emails lowercased on every write so register/login/OAuth/invite all
-// resolve to a single account. Reads use a case-insensitive match so rows that
-// were created before normalization (mixed-case emails) still resolve.
+// We store and look up emails in canonical form (trimmed + lowercased) so
+// register/login/OAuth/invite all resolve to a single account. Since every
+// write normalizes, lookups can use a plain exact match (index-friendly).
 
-/** Canonical form stored in the DB: trimmed + lowercased. */
+/** Canonical form: trimmed + lowercased. */
 export function normalizeEmail(email: unknown): string {
   return String(email ?? "").trim().toLowerCase();
-}
-
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/**
- * Mongo filter value for a case-insensitive exact-email match.
- * Usage: `collection.findOne({ email: emailMatch(input) })`
- */
-export function emailMatch(email: unknown) {
-  return { $regex: new RegExp(`^${escapeRegex(normalizeEmail(email))}$`, "i") };
 }
