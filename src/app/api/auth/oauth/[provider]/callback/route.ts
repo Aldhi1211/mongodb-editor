@@ -7,6 +7,7 @@ import {
   exchangeCodeForToken,
   fetchVerifiedEmail,
 } from "@/lib/oauth";
+import { normalizeEmail } from "@/lib/email";
 
 export async function GET(
   req: NextRequest,
@@ -36,8 +37,11 @@ export async function GET(
     const accessToken = await exchangeCodeForToken(provider, cfg, code);
     if (!accessToken) return fail("oauth_token");
 
-    const email = await fetchVerifiedEmail(provider, accessToken);
-    if (!email) return fail("oauth_no_email");
+    const verifiedEmail = await fetchVerifiedEmail(provider, accessToken);
+    if (!verifiedEmail) return fail("oauth_no_email");
+
+    // Normalize so OAuth resolves to the same account as register/login/invite.
+    const email = normalizeEmail(verifiedEmail);
 
     const client = await clientPromise;
     const db = client.db("workflowbuilder_auth");
