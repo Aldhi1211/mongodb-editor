@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import clientPromise from "../../../../lib/mongodb";
+import { emailMatch } from "@/lib/email";
 
 export async function POST(req: Request) {
   try {
@@ -10,7 +11,7 @@ export async function POST(req: Request) {
     const client = await clientPromise;
     const db = client.db("workflowbuilder_auth");
 
-    const user = await db.collection("users").findOne({ email });
+    const user = await db.collection("users").findOne({ email: emailMatch(email) });
 
     if (!user) {
       return NextResponse.json(
