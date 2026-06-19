@@ -179,6 +179,15 @@ Write operations (`deleteOne`, `deleteMany`, `updateOne`, `updateMany`) show a *
 
 `src/hooks/useTheme.ts` — reads/writes `mongoedit:theme` in localStorage. Default: `"light"`. Used in `/edit` and `/drafts` pages. Toggle button (sun/moon icon) in page headers.
 
+## Documentation (MontraDocs)
+
+In-app documentation lives under `src/components/docs/` and opens from the help (`?`) icon in the navbar (`MongoDocs.tsx`, rendered as a full-screen overlay).
+
+Two hard rules for all docs content:
+
+1. **Always write documentation content in Bahasa Indonesia.** This applies to every user-facing string in the docs (collection descriptions, `long` overviews, notes/callouts, field descriptions). Code, identifiers, type names, and field keys stay in English — only the prose is Indonesian. Phrase it formally and clearly enough for a beginner reading it for the first time.
+2. **Split docs into separate files once a topic is no longer related.** Do not let a single docs file grow unbounded. When content covers a distinct area, move it into its own file under `src/components/docs/` rather than appending to an existing one, so no file gets too long.
+
 ## Git Conventions
 
 Use **Conventional Commits**:
