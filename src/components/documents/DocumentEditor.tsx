@@ -311,7 +311,7 @@ export default function DocumentEditor({
   return (
     <div className={`flex flex-col h-full ${t.page}`}>
       {/* ── Header ── */}
-      <div className={`flex items-center gap-0 px-3 h-11 border-b flex-shrink-0 ${t.header}`}>
+      <div className={`relative z-10 flex items-center gap-0 px-3 h-11 border-b flex-shrink-0 ${t.header}`}>
         {/* Back */}
         <button
           onClick={handleBack}
