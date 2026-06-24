@@ -5,8 +5,6 @@ import { Loader2, Eye, Pencil, ExternalLink, Plus, Trash2, RefreshCw } from "luc
 export default function DocumentContextMenu({ pos, onDelete, onUpdate, onEditNewTab, onAdd, onView, onRefresh, onClose, userRole = "viewer" }: any) {
     const [loading, setLoading] = useState(false)
 
-    if (!pos) return null
-
     const handleRefresh = async (e: Event) => {
         e.preventDefault()
         setLoading(true)
@@ -20,6 +18,11 @@ export default function DocumentContextMenu({ pos, onDelete, onUpdate, onEditNew
 
     const MENU_W = 160 // w-40
     const MENU_H = userRole !== "viewer" ? 240 : 110
+
+    if (!pos) {
+        return <DropdownMenu open={false} />
+    }
+
     const x = Math.min(pos.x, window.innerWidth - MENU_W - 8)
     const y = Math.min(pos.y, window.innerHeight - MENU_H - 8)
 
