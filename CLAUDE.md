@@ -179,6 +179,38 @@ Write operations (`deleteOne`, `deleteMany`, `updateOne`, `updateMany`) show a *
 
 `src/hooks/useTheme.ts` — reads/writes `mongoedit:theme` in localStorage. Default: `"light"`. Used in `/edit` and `/drafts` pages. Toggle button (sun/moon icon) in page headers.
 
+## Documentation (MontraDocs)
+
+In-app documentation lives under `src/components/docs/` and opens from the help (`?`) icon in the navbar (`MongoDocs.tsx`, rendered as a full-screen overlay).
+
+### File Structure
+
+The docs UI is split by concern — never let any single file hold styles, types, helpers, data, and component all at once:
+
+```
+src/components/docs/
+├── MongoDocs.tsx      # main component only (state, layout, search, scroll-spy)
+├── styles.ts          # the STYLES CSS string — all CSS lives here, not inline in the component
+├── types.ts           # shared interfaces (Field, Collection, SectionDef, SearchItem, …)
+├── helpers.tsx        # f() field builder, renderText, highlightJson, copyText
+├── components.tsx     # presentational pieces (TypeCell, ReqCell, SchemaTable, CodeBlock, RestartJarPanel)
+└── data/
+    ├── index.ts       # SECTIONS, CUSTOM_PAGES, merged COLLECTIONS, ALL_IDS, CHILD_OF, depthOf, ANCHORS
+    ├── workflows.ts   # one file per section — collections whose `section` is "Workflows"
+    ├── reports.ts     # section: "Reports"
+    ├── masterdata.ts  # section: "Masterdata"
+    └── etc.ts         # section: "ETC"
+```
+
+Each `data/<section>.ts` exports a `Record<string, Collection>` (e.g. `workflowsCollections`); `data/index.ts` spread-merges them into `COLLECTIONS`. A collection lives in the file matching its own `section` field (e.g. `validationcondition` has `section: "ETC"`, so it lives in `etc.ts`, even though it is referenced from Workflows docs).
+
+Hard rules for all docs content and code:
+
+1. **Always write documentation content in Bahasa Indonesia.** This applies to every user-facing string in the docs (collection descriptions, `long` overviews, notes/callouts, field descriptions). Code, identifiers, type names, and field keys stay in English — only the prose is Indonesian. Phrase it formally and clearly enough for a beginner reading it for the first time.
+2. **Keep styles, types, helpers, data, and components in their own files.** CSS goes in `styles.ts`, never inline in `MongoDocs.tsx`. Collection data goes in `data/<section>.ts`, split per section — never inline a new collection's data into `MongoDocs.tsx` or pile every section into one file.
+3. **Split further once a topic is no longer related.** Do not let any docs file grow unbounded. When a section's `data/<section>.ts` itself gets too long, or content covers a distinct new area, move it into its own file rather than appending — so no file gets too long.
+4. **Reuse shared UI as a component — never duplicate markup.** When the same visual block is used in more than one place (or repeated within one file), extract it into a component in `components.tsx` and call it, instead of copy-pasting the inline JSX. This keeps files short and means a style change happens in exactly one place. Examples already in place: note/tip/warn boxes render via `<Callout>` / `<NoteList>` (not inline `<div className="callout">`), and schema rows via `<SchemaTable>` / `<TypeCell>`. Applies project-wide, not just to docs.
+
 ## Git Conventions
 
 Use **Conventional Commits**:

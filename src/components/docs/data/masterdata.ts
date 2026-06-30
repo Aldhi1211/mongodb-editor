@@ -1,0 +1,93 @@
+import { f } from "../helpers"
+import type { Collection } from "../types"
+
+export const masterdataCollections: Record<string, Collection> = {
+    masterdata: {
+        section: "Masterdata",
+        description: "Master Data adalah ReportType.masterdata — secara struktur sama persis dengan Report, tetapi berperan sebagai data acuan/referensi (input), bukan data hasil (output). Disimpan di collection `masterdata_<key>` dan dipakai untuk dropdown serta validasi MD_EXISTS.",
+        long:
+            "Master Data bukan model yang terpisah. Ia adalah sebuah [[reports|Report]] dengan tipe `ReportType.masterdata`, sehingga skema dokumennya identik dengan Report (`key`, `fields`, `tableConfig`, `groups`, dan seterusnya — `_class`-nya pun tetap `...reports.Report`). Yang membedakan hanyalah perannya: master data adalah data acuan/referensi yang menjadi input, sedangkan report adalah data hasil/output.\n\n" +
+            "Karena perannya sebagai input, `triggers` biasanya kosong — datanya tidak diisi otomatis oleh penyelesaian task workflow, melainkan dikelola manual lewat UI. Itulah sebabnya `tableConfig` master data umumnya mengaktifkan CRUD penuh (`contentAddAble`/`contentEditAble`/`contentDeleteAble`/`contentImportAble` = `true`), berbeda dengan report yang umumnya read-only.\n\n" +
+            "Tiap master data disimpan di collection tersendiri bernama `masterdata_<key>` (mis. `key: \"jenisKopi\"` → collection `masterdata_jenisKopi`). Datanya diakses lewat MasterDataController pada endpoint `/distincts/...` untuk mengisi opsi dropdown, dan dipakai oleh operator `MD_EXISTS`/`MD_*` pada [[validationcondition|ValidationCondition]] untuk memvalidasi sebuah nilai terhadap data acuan.",
+        meta: { documents: "varies", indexed: true },
+        notes: [
+            { kind: "note", text: "Skema master data sama persis dengan [[reports|Report]] — lihat halaman Report untuk definisi lengkap tiap field (`fields`, `tableConfig`, `indexKey`, dll.). Di sini hanya disorot field yang khas/relevan untuk master data." },
+            { kind: "note", text: "Penyimpanan: tiap master data punya collection sendiri bernama `masterdata_<key>`. Contoh `key: \"jenisKopi\"` → data baris-barisnya ada di collection `masterdata_jenisKopi`." },
+            { kind: "note", text: "Beda peran dari Report: `triggers` biasanya kosong (diisi manual, bukan oleh workflow), dan `tableConfig` mengizinkan add/edit/delete/import karena dikelola langsung oleh user." },
+            { kind: "note", text: "Penggunaan: opsi dropdown diambil lewat `/distincts/...` (MasterDataController), dan nilai divalidasi memakai operator `MD_EXISTS`/`MD_NOT_EXISTS`/`MD_NOT_IN`/`MD_COUNT` pada [[validationcondition|ValidationCondition]]." },
+            { kind: "note", text: "`accessibleForDistinct` harus `true` agar master data ini boleh dipakai sebagai sumber data distinct (dropdown) maupun validasi master data." },
+        ],
+        flow: [
+            { title: "Definisikan master data", detail: "Buat dokumen Report `ReportType.masterdata` dengan `key` + `fields`." },
+            { title: "Isi data (CRUD)", detail: "Tambah/edit/hapus baris lewat UI; `triggers` kosong." },
+            { title: "masterdata_<key>", detail: "Baris data tersimpan di collection `masterdata_<key>`." },
+            { title: "Dipakai", detail: "Dropdown via `/distincts`, atau validasi `MD_EXISTS` di [[validationcondition|ValidationCondition]]." },
+        ],
+        fields: [
+            f("_id", "objectid", true, "Unique document identifier."),
+            f("key", "string", true, "Kunci unik master data. Menentukan nama collection penyimpanan `masterdata_<key>`.", { eg: { key: "jenisKopi" } }),
+            f("name", "string", true, "Nama master data yang ditampilkan ke user."),
+            f("description", "string", false, "Deskripsi master data."),
+            f("fields", "array", true, "Kolom data acuan. Strukturnya sama dengan field di [[reports|Report]]/[[fields|Fields]].", { of: "object" }),
+            f("key", "string", true, "ID unik kolom.", { depth: 1 }),
+            f("label", "string", true, "Label kolom yang ditampilkan.", { depth: 1 }),
+            f("type", "string", true, "Tipe field — memakai daftar FieldType yang sama dengan [[fields|Fields]].", { depth: 1 }),
+            f("order", "number", false, "Urutan kolom.", { depth: 1 }),
+            f("isRequired", "boolean", false, "Wajib diisi atau tidak.", { depth: 1 }),
+            f("isDisabled", "boolean", false, "Kolom dikunci (read-only).", { depth: 1 }),
+            f("triggers", "array", false, "Umumnya kosong untuk master data — data diisi manual, bukan dipicu node workflow.", { of: "string" }),
+            f("accessibleForDistinct", "boolean", false, "Harus `true` agar bisa dipakai sebagai sumber dropdown (`/distincts`) dan validasi `MD_EXISTS`."),
+            f("tableConfig", "object", true, "Untuk master data, CRUD biasanya diaktifkan (add/edit/delete/import = `true`). Skema lengkap lihat [[reports|Report]]."),
+            f("contentAddAble", "boolean", false, "User boleh menambah baris data.", { depth: 1 }),
+            f("contentEditAble", "boolean", false, "Baris data boleh diedit.", { depth: 1 }),
+            f("contentDeleteAble", "boolean", false, "Baris data boleh dihapus.", { depth: 1 }),
+            f("contentImportAble", "boolean", false, "Data boleh diimpor (mis. dari Excel).", { depth: 1 }),
+            f("_vsb", "string", false, "Status/visibility master data.", { enumValues: ["ACTIVE", "PAUSED"] }),
+            f("groups", "array", false, "Grup yang memiliki master data ini.", { of: "string" }),
+            f("createAt", "number", false, "Waktu dibuat (epoch milidetik)."),
+            f("updateAt", "number", false, "Waktu diperbarui (epoch milidetik)."),
+            f("_class", "string", false, "Penanda class Java — tetap `...reports.Report` karena master data adalah Report bertipe masterdata."),
+        ],
+        example: {
+            _id: "6944ccdcb20246f622ee93c7",
+            key: "jenisKopi",
+            filterKeys: [],
+            countIndexs: [],
+            indexKeys: [],
+            fields: [
+                { isRequired: true, label: "Kode Jenis Kopi", isDisabled: false, type: "TEXT", key: "kode_jenis_kopi", order: 0 },
+                { isRequired: true, label: "Nama Jenis Kopi", isDisabled: false, type: "TEXT", key: "nama_jenis_kopi", order: 0 },
+            ],
+            triggers: [],
+            triggerExclusives: [],
+            name: "Jenis Kopi",
+            order: 0,
+            isHidden: false,
+            showBtns: [],
+            groups: [],
+            userGroups: [],
+            _vsb: "ACTIVE",
+            description: "Master Data Jenis Kopi",
+            createAt: 1629429763824,
+            updateAt: 1629429763825,
+            accessibleForDistinct: true,
+            clickable: true,
+            tableConfig: {
+                contentAddAble: true, contentEditAble: true, contentDeleteAble: true, contetExportAble: true, contentImportAble: true,
+                fieldDeleteAble: false, fieldEditAble: false, fieldAddAble: false, rowHeight: 80, createAt: true, withTitle: false,
+                contentFilterByCreatedAtRangeAble: true, filterByMonth: false, filterByYear: false, filterDateOneYear: false,
+            },
+            validationOperators: [],
+            isPersonalQuery: false,
+            _class: "biz.byonchat.v2.services.reports.Report",
+        },
+        indexes: [
+            { name: "key_1", keys: ["key"], unique: true },
+        ],
+        relations: [
+            { field: "key", to: "reports", kind: "is a (ReportType.masterdata)" },
+            { field: "fields.type", to: "fields", kind: "references" },
+            { field: "_id", to: "validationcondition", kind: "referenced by (MD_EXISTS)" },
+        ],
+    },
+}

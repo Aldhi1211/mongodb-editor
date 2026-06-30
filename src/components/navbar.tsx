@@ -23,6 +23,7 @@ import {
     SheetClose,
 } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
+import MongoDocs from "@/components/docs/MongoDocs"
 
 export type NavView = "collections" | "audit" | "charts" | "drafts"
 
@@ -99,6 +100,7 @@ export function NavBarMenu({
     const [userEmail, setUserEmail] = useState("")
     const [draftCount, setDraftCount] = useState(0)
     const [clusterSearch, setClusterSearch] = useState("")
+    const [docsOpen, setDocsOpen] = useState(false)
 
     // Derive the signed-in user's email from the JWT.
     useEffect(() => {
@@ -139,6 +141,7 @@ export function NavBarMenu({
     )
 
     return (
+        <>
         <header className="sticky top-0 z-50 w-full border-b border-neutral-200 bg-white flex-shrink-0">
             <div className="flex h-14 w-full items-center gap-2 px-4 sm:px-5 lg:px-6">
 
@@ -325,7 +328,12 @@ export function NavBarMenu({
                         </span>
                     )}
 
-                    <button className="hidden lg:grid place-items-center w-[34px] h-[34px] rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 cursor-default" tabIndex={-1} aria-hidden="true">
+                    <button
+                        onClick={() => setDocsOpen(true)}
+                        className="hidden lg:grid place-items-center w-[34px] h-[34px] rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 cursor-pointer"
+                        aria-label="Open documentation"
+                        title="Documentation"
+                    >
                         <HelpCircle className="w-[18px] h-[18px]" />
                     </button>
 
@@ -372,5 +380,12 @@ export function NavBarMenu({
                 </div>
             </div>
         </header>
+
+        {docsOpen && (
+            <div className="fixed inset-0 z-[100] bg-white">
+                <MongoDocs onClose={() => setDocsOpen(false)} />
+            </div>
+        )}
+        </>
     )
 }

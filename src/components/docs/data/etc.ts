@@ -1,0 +1,222 @@
+import { f } from "../helpers"
+import type { Collection, Field } from "../types"
+
+/** Schema of a Selection (dropdown/combobox options) — dipakai langsung oleh field
+   DROPDOWN/RADIO/CHECKBOX, dan lewat property `ref` pada field tipe lain. */
+export const selectionFields: Field[] = [
+    // opsi static (hardcoded)
+    f("options", "array", false, "Daftar opsi yang ditampilkan di dropdown (nilai static/hardcode).", { of: "string", eg: { options: ["Bahan Baku", "Barang Kemasan"] } }),
+    f("optionValues", "object", false, "Akan mengubah value berdasarkan teks tampilan (display text) untuk setiap opsi.", { eg: { optionValues: { No: "${$.form1.formData.taxNo}", Yes: "${$.form1.formData.taxYes}" } } }),
+    f("placeholder", "string", false, "Teks placeholder sebelum user memilih.", { eg: { placeholder: "Ini PlaceHolder" } }),
+    f("additionalOptions", "array", false, "Opsi tambahan yang bisa ditambahkan.", { of: "string", eg: { additionalOptions: ["Aqua (Water)"] } }),
+    f("firstAdditionalOptions", "array", false, "Opsi tambahan yang ditampilkan paling atas.", { of: "string", eg: { firstAdditionalOptions: ["Aqua (Water)"] } }),
+    // data source — dari database/report
+    f("reportType", "string", false, "Tipe report sumber data. Hanya bisa diisi salah satu dari nilai enum berikut.", { enumValues: ["reports", "masterdata", "users", "tabs", "tasks", "ilcache", "recapitulations", "audit", "location"] }),
+    f("collection", "string", false, "Nama collection/tabel database sumber opsi.", { eg: { collection: "keyCollection" } }),
+    f("searchKey", "string", false, "Field di report yang dijadikan value opsi.", { eg: { searchKey: "key" } }),
+    f("searchKeyAdt", "string", false, "Berfungsi ketika `searchKey` mau mengambil 2 data sekaligus — gunakan `searchKey` dan `searchKeyAdt` bersamaan di JSON-nya.", { eg: { searchKeyAdt: "key" } }),
+    f("searchKeyAdtMultiple", "string", false, "Berfungsi ketika `searchKey` yang dibutuhkan lebih dari 2. Berisi daftar beberapa field (dipisahkan koma) yang digabung menjadi 1 opsi display.", { eg: { searchKeyAdtMultiple: "name,category,price" } }),
+    f("dbSort", "string", false, "Field yang dipakai untuk sorting hasil query. Value-nya diisi dengan `key` dari fields di report/masterdata.", { eg: { dbSort: "key" } }),
+    f("params", "object", false, "Parameter filter query ke database (HashMap). Value-nya bisa diisi secara hardcode atau memakai [[replacer_overview|replacer]] untuk mengambil nilai dari field lain.", { eg: { params: { nomorproduksireal: "${workflowId.formId.formData.nomorproduksireal}" } } }),
+    f("ops", "object", false, "Mapping untuk menentukan operator query apa yang digunakan untuk setiap field filter di `params`. Default-nya adalah `IS` (equal) jika field tidak ada di `ops`. Nilai operasinya hanya bisa diisi salah satu dari enum berikut: `IS` (`=`, sama dengan), `NE` (`!=`, tidak sama), `IN` (ada dalam list), `REGEX` (`~`, pattern matching), `GT` (`>`, lebih besar), `LT` (`<`, lebih kecil), `GTE` (`>=`, lebih besar atau sama), `LTE` (`<=`, lebih kecil atau sama).", { enumValues: ["IS", "NE", "IN", "REGEX", "GT", "LT", "GTE", "LTE"], eg: { ops: { akhir: "GT" } } }),
+    // data source — dinamis (dari field/task)
+    f("sourceKey", "array", false, "Daftar `key` field yang dijadikan sumber opsi (diambil dari task data) dan dipakai untuk penginputan di CMS. Value-nya berisi `key` dari DROPDOWN yang men-trigger reload. Agak berbeda dengan `searchKey`: `sourceKey` dipakai di sisi dropdown yang men-trigger, sedangkan `searchKey` justru dipakai di field target-nya.", { of: "string", eg: { sourceKey: ["jabatan"] } }),
+    f("useOther", "boolean", false, "Gunakan data dari field lain sebagai sumber opsi."),
+    f("useParent", "boolean", false, "Ambil data dari form/workflow parent."),
+    f("addOptionsFromTP", "string", false, "Menambah opsi dari task progress menggunakan variable `${...}`."),
+    f("ignoreParams", "array", false, "Daftar parameter yang diabaikan saat query.", { of: "string" }),
+    // display & ui
+    f("uiType", "string", false, "Tipe tampilan untuk field [[CHECKBOX]]. `NORMAL` menampilkan opsi sebagai daftar checkbox vertikal biasa; `DIALOG` menampilkan opsi dalam modal/dropdown — cocok untuk pilihan banyak atau di perangkat mobile.", { enumValues: ["NORMAL", "DIALOG"], eg: { uiType: "DIALOG" } }),
+    f("sort", "boolean", false, "Mengurutkan opsi (`true` = terurut alfabet).", { eg: { sort: true } }),
+    f("separator", "string", false, "Pemisah yang digunakan ketika `searchKeyAdt` atau `searchKeyAdtMultiple` menggabungkan beberapa value menjadi 1 tampilan. Default: `-`.", { eg: { separator: " - " } }),
+    f("btnSelectAll", "boolean", false, "Menampilkan tombol \"Pilih Semua\".", { eg: { btnSelectAll: true } }),
+    f("apiGrouped", "string", false, "Grouping opsi berdasarkan kategori."),
+    // performance (android)
+    f("useOfflineOption", "boolean", false, "Gunakan opsi yang sudah di-cache (offline).", { eg: { useOfflineOption: true } }),
+    f("dfsdl", "boolean", false, "Dropdown First Select Disable Listener — jika `true`, listener hanya jalan 1× setelah select; jika `false`, listener jalan setiap interaksi. Untuk optimasi performa mobile.", { eg: { dfsdl: true } }),
+]
+
+export const etcCollections: Record<string, Collection> = {
+    validationcondition: {
+        section: "ETC",
+        description: "ValidationCondition adalah satu aturan kondisi berbentuk perbandingan — \"apakah field op value?\" — yang dipakai untuk routing di Validation node maupun filter di Form.",
+        long: "ValidationCondition merupakan unit logika `if` pada engine workflow: membandingkan sisi kiri (`field`) terhadap sisi kanan (`value`) menggunakan sebuah operator (`op`). Keduanya bisa berupa template variabel `${...}` yang di-resolve dari data task saat runtime. Kondisi ini dipakai untuk dua hal: (1) percabangan routing di node [[validation|Validation]] — tiap kondisi membawa `dest`-nya sendiri, kondisi pertama yang cocok menentukan tujuan berikutnya; dan (2) filter di [[form|FORM]] — `submitFilters` (boleh submit?), `btnFilters` (tombol muncul?), `disableTaskFilters` (task dinonaktifkan?). Evaluasi berjalan dua tahap: pertama di memori (operator in-memory seperti `EQUALS`, `GREATER_THAN`), lalu fallback ke query database untuk operator master-data (`MD_EXISTS`, `IN`, dll.).",
+        meta: { documents: "—", indexed: false },
+        notes: [
+            { kind: "note", text: "Operator dibagi dua kelompok: **in-memory** (`EQUALS`, `NOT_EQUALS`, `GREATER_THAN`, `GREATER_THAN_EQUALS`, `LOWER_THAN`, `LOWER_THAN_EQUALS`, `CONTAINS`, `IS_NULL`, `IS_NOT_NULL`) — dievaluasi langsung di memori; dan **master-data** (`MD_EXISTS`, `MD_NOT_EXISTS`, `MD_NOT_IN`, `MD_COUNT`, `IN`) — selalu false di memori, harus lewat query database." },
+            { kind: "note", text: "`dataType` menentukan cara perbandingan dilakukan. Penting agar hasilnya benar — mis. `\"10\" > \"9\"` salah sebagai STRING, tapi benar sebagai NUMBER. Nilai yang tersedia: `STRING`, `DATE`, `NUMBER`, `FLOAT`, `LONG`, `DOUBLE`, `INTEGER`." },
+            { kind: "note", text: "Saat dipakai sebagai routing di node [[validation|Validation]], tiap ValidationCondition membawa `dest` (tujuan node berikutnya). Kondisi pertama yang bernilai `true` menang — sisanya diabaikan. Jika tidak ada yang cocok, alur jatuh ke `defaultDest`." },
+            { kind: "tip", text: "Saat dipakai sebagai `submitFilters` atau `btnFilters` di [[form|FORM]], field `dest` tidak dipakai — hanya hasil `true`/`false` dari evaluasi kondisi yang digunakan." },
+        ],
+        fields: [
+            f("field", "string", true, "Sisi kiri perbandingan — field atau nilai yang akan dievaluasi. Bisa berupa template variabel `${...}` yang mengambil nilai dari data task saat runtime.", { eg: { field: "${$.$.formData.status}" } }),
+            f("op", "string", true, "Operator perbandingan.", { enumValues: ["EQUALS", "NOT_EQUALS", "GREATER_THAN", "GREATER_THAN_EQUALS", "LOWER_THAN", "LOWER_THAN_EQUALS", "CONTAINS", "IS_NULL", "IS_NOT_NULL", "MD_EXISTS", "MD_NOT_EXISTS", "MD_NOT_IN", "MD_COUNT", "IN"] }),
+            f("value", "string", false, "Sisi kanan perbandingan. Bisa hardcode atau template `${...}`. Tidak dipakai untuk `IS_NULL`/`IS_NOT_NULL`.", { eg: { value: "approved" } }),
+            f("dataType", "string", false, "Tipe data untuk perbandingan yang benar. Pastikan sesuai agar hasil evaluasi tidak keliru.", { enumValues: ["STRING", "DATE", "NUMBER", "FLOAT", "LONG", "DOUBLE", "INTEGER"] }),
+            f("dataFormats", "array", false, "Format parsing nilai, terutama untuk `dataType: DATE`. Contoh: `[\"yyyy-MM-dd\"]`.", { of: "string", eg: { dataFormats: ["yyyy-MM-dd"] } }),
+            f("dest", "object", false, "Tujuan node jika kondisi terpenuhi. Hanya dipakai saat ValidationCondition digunakan sebagai routing di node [[validation|Validation]].", { eg: { dest: { node: { workflowId: "workflowId", nodeId: "nodeId" } } } }),
+            f("errMessage", "string", false, "Pesan error yang ditampilkan ke user jika kondisi tidak terpenuhi saat submit. Bisa berisi template `${...}`.", { eg: { errMessage: "Submit ditolak karena status belum approved." } }),
+            f("btnFilter", "boolean", false, "Tandai kondisi ini sebagai filter tombol — dipakai oleh `btnFilters` di [[form|FORM]].", { eg: { btnFilter: true } }),
+            f("mdType", "string", false, "Tipe sumber master data untuk operator `MD_*` — menentukan dari mana data validasi diambil."),
+            f("mdKey", "string", false, "Key field di master data yang dipakai sebagai pembanding untuk operator `MD_*`."),
+            f("mdParams", "object", false, "Parameter filter query ke master data untuk operator `MD_*`."),
+            f("mdVC", "boolean", false, "Master-data validating comparison — jika `true`, nilai field dibandingkan dengan nilai yang diambil dari master data via `repo.findDistinct(...)`, bukan dari `value` langsung."),
+            f("isSendNotifNeeded", "boolean", false, "Kirim notifikasi saat rute dari kondisi ini diambil. Hanya relevan saat dipakai sebagai routing di node Validation."),
+            f("isCancelBetweenValidator", "boolean", false, "Batalkan between-validator saat kondisi ini dievaluasi."),
+        ],
+        example: {
+            op: "NOT_EQUALS",
+            field: "${DATETIME|0.0.0.0.0.0|yyyy-MM-dd|${$.$.metadata.updateAt}|yyyy-MM-dd}",
+            value: "${DATETIME|0.0.0.0.0.0|yyyy-MM-dd|${workflowVisitationAuto.form0.metadata.updateAt}|yyyy-MM-dd}",
+            dataType: "DATE",
+            dataFormats: ["yyyy-MM-dd"],
+            errMessage: "Submit ditolak. Submit hanya dapat dilakukan pada tanggal ${DATETIME|0.0.0.0.0.0|yyyy-MM-dd|${workflowVisitationAuto.form0.metadata.updateAt}|yyyy-MM-dd}",
+        },
+        example2Label: "Contoh sebagai routing di node Validation — kondisi status EQUALS 'approved' mengarahkan ke node berikutnya.",
+        example2: {
+            field: "${$.$.formData.status}",
+            op: "EQUALS",
+            value: "approved",
+            dataType: "STRING",
+            dest: { node: { workflowId: "workflowId", nodeId: "formNext" } },
+        },
+        indexes: [],
+        relations: [],
+    },
+
+    selection: {
+        section: "Fields Schema",
+        description: "Selection adalah konfigurasi opsi untuk field pemilihan (dropdown/combobox) — menentukan sumber opsi dan cara menampilkannya.",
+        long: "Selection dipakai langsung pada field [[DROPDOWN]], [[RADIO]], dan [[CHECKBOX]], serta bisa dipakai field tipe lain melalui property `ref`. Properties-nya menentukan dari mana opsi diambil: static (`options`), dari database/report (`reportType`/`collection`/`searchKey`), atau dari field/task lain (`sourceKey`/`useOther`).",
+        meta: { documents: "—", indexed: false },
+        notes: [
+            { kind: "note", text: "Field bertipe [[DROPDOWN]], [[RADIO]], dan [[CHECKBOX]] adalah Selection field — schema Selection ini bisa dipakai langsung pada field tersebut. Field tipe lain memakai Selection melalui property `ref`." },
+        ],
+        fields: selectionFields,
+        example: {
+            key: "status",
+            type: "DROPDOWN",
+            label: "Status",
+            reportType: "masterdata",
+            collection: "status_list",
+            searchKey: "statusName",
+            placeholder: "Pilih status",
+            sort: true,
+        },
+        indexes: [],
+        relations: [],
+    },
+
+    itemlist_style: {
+        section: "ETC",
+        description: "ItemListStyle adalah dokumen konfigurasi terpisah di collection itemlist_style — direferensikan dari field FORM_CHILD melalui insertStyle/loadStyle untuk mengatur tampilan, formula total, auto-fill ref, dan validasi item.",
+        long: "ItemListStyle merupakan dokumen konfigurasi yang di-referensikan dari field [[FORM_CHILD]] melalui property `insertStyle` dan `loadStyle`. Dokumen ini memisahkan logika styling dan behavior dari definisi field, sehingga satu konfigurasi style bisa dipakai ulang oleh banyak FORM_CHILD yang berbeda. Di dalamnya bisa dikonfigurasi: template judul/subtitle item menggunakan variabel `${fieldKey}`, formula total/subtotal (`${SUM(...)}`), daftar ref untuk auto-fill field (`refs`), nilai dari luar yang otomatis disisipkan ke setiap item (`needOutsideVal`), serta aturan validasi sebelum item tersimpan (`validationConditions`, `submitFilters`). Untuk use case warehouse, tersedia juga `stockImpacts` untuk mengatur dampak perubahan stok.",
+        meta: { documents: "varies", indexed: false },
+        notes: [
+            { kind: "note", text: "`insertStyle` dan `loadStyle` pada [[FORM_CHILD]] diisi dengan nilai `key` dari dokumen ItemListStyle yang sesuai — bukan `_id`." },
+            { kind: "tip", text: "Formula yang tersedia: `${fieldKey}` (nilai field), `${SUM(fieldKey)}` (total), `${COUNT()}` (jumlah item), `${AVG(fieldKey)}` (rata-rata), `${TODAY}` (tanggal hari ini), `${userId}` (user aktif), `${formData.fieldKey}` (nilai dari form induk)." },
+            { kind: "warn", text: "Tidak semua property wajib diisi. Hapus property yang tidak dibutuhkan agar dokumen tidak terlalu panjang." },
+        ],
+        fields: [
+            f("_id", "string", true, "ID unik dokumen di MongoDB."),
+            f("key", "string", true, "Identifier unik yang dipakai pada `insertStyle`/`loadStyle` di [[FORM_CHILD]]. Nilai ini yang digunakan untuk reference, bukan `_id`.", { eg: { key: "purchase_order_items" } }),
+            f("_vsb", "string", true, "Status aktif dokumen. Hanya nilai `ACTIVE` yang akan dipakai oleh sistem; dokumen dengan nilai lain akan diabaikan.", { enumValues: ["ACTIVE", "PAUSED"], eg: { _vsb: "ACTIVE" } }),
+            f("title", "string", false, "Template judul yang ditampilkan pada setiap item. Gunakan `${fieldKey}` untuk menyisipkan nilai field.", { eg: { title: "Item: ${product_code} - ${product_name}" } }),
+            f("subtitle", "string", false, "Template subtitle di bawah judul item. Mendukung variabel `${fieldKey}` yang sama dengan `title`.", { eg: { subtitle: "Qty: ${quantity} ${unit}, Harga: ${unit_price}" } }),
+            f("showTotal", "boolean", false, "Jika `true`, tampilkan ringkasan total di bagian bawah daftar item.", { eg: { showTotal: true } }),
+            f("total", "string", false, "Formula untuk menghitung dan menampilkan total keseluruhan. Contoh formula: `${SUM(line_total)}`, `Grand Total: ${SUM(line_total)}`.", { eg: { total: "Grand Total: ${SUM(line_total)}" } }),
+            f("subtotal", "string", false, "Formula untuk subtotal (misalnya total quantity). Ditampilkan di samping `total`.", { eg: { subtotal: "Total Qty: ${SUM(quantity)}" } }),
+            f("quantityField", "string", false, "Key field yang dianggap sebagai quantity. Dipakai untuk kalkulasi stok dan ringkasan.", { eg: { quantityField: "quantity" } }),
+            f("primaryKey", "string", false, "Key field yang dijadikan primary key unik per item. Mencegah item duplikat berdasarkan field ini.", { eg: { primaryKey: "product_code" } }),
+            f("refs", "array", false, "Daftar konfigurasi auto-fill referensi. Setiap elemen berisi: `ilKey` (field yang diisi), `reportType`, `collection`, `searchKey` (nilai pencarian, bisa `${fieldKey}`), `returnKey` (field yang dikembalikan), dan `condition` (opsional). Sistem akan otomatis mengisi field target setelah item ditambahkan.", { of: "object", eg: { refs: [{ ilKey: "product_name", reportType: "reports", collection: "products", searchKey: "${product_code}", returnKey: "name" }] } }),
+            f("refsToString", "array", false, "Sama dengan `refs`, tetapi nilai hasil referensi dikonversi ke string sebelum disimpan.", { of: "object" }),
+            f("reloadRefs", "array", false, "Daftar ref yang dijalankan ulang saat item di-reload/refresh.", { of: "object" }),
+            f("needOutsideVal", "object", false, "Nilai dari form induk yang otomatis disisipkan ke setiap item. Key adalah nama field di item, value adalah ekspresi `${formData.fieldKey}` atau nilai lain.", { eg: { needOutsideVal: { po_number: "${formData.po_number}", vendor_id: "${formData.vendor_id}" } } }),
+            f("validationConditions", "array", false, "Daftar [[validationcondition|ValidationCondition]] yang dijalankan sebelum item disimpan. Jika ada kondisi yang gagal, item tidak tersimpan dan pesan error ditampilkan.", { of: "object", eg: { validationConditions: [{ field: "quantity", op: "GT", value: 0, errMessage: "Quantity harus > 0" }] } }),
+            f("submitFilters", "array", false, "Daftar [[validationcondition|ValidationCondition]] yang dijalankan saat form di-submit (bukan saat insert item). Memvalidasi keseluruhan daftar item.", { of: "object", eg: { submitFilters: [{ field: "line_total", op: "GT", value: 0, errMessage: "Total line item harus > 0" }] } }),
+            f("stockImpacts", "array", false, "Konfigurasi dampak ke stok. Setiap elemen berisi: `fromField` (field sumber), `toField` (field target, bisa null), `impactField` (field stok yang berubah), `operation` (operasi: `ADD`, `SUBTRACT`, atau `REPLACE`).", { of: "object", eg: { stockImpacts: [{ fromField: "old_qty", toField: "new_qty", impactField: "warehouse_stock", operation: "SUBTRACT" }] } }),
+        ],
+        example: {
+            _id: "purchase_order_items",
+            key: "purchase_order_items",
+            _vsb: "ACTIVE",
+            title: "Item: ${product_code} - ${product_name}",
+            subtitle: "Qty: ${quantity} ${unit}, Harga Satuan: ${unit_price}",
+            showTotal: true,
+            total: "Grand Total: ${SUM(line_total)}",
+            subtotal: "Total Qty: ${SUM(quantity)}",
+            quantityField: "quantity",
+            primaryKey: "product_code",
+            refs: [
+                { ilKey: "product_name", reportType: "reports", collection: "products", searchKey: "${product_code}", returnKey: "name" },
+                { ilKey: "unit", reportType: "reports", collection: "products", searchKey: "${product_code}", returnKey: "unit" },
+                { ilKey: "stock_available", reportType: "reports", collection: "inventory", searchKey: "${product_code}", returnKey: "available_qty" },
+            ],
+            needOutsideVal: {
+                po_number: "${formData.po_number}",
+                vendor_id: "${formData.vendor_id}",
+                po_date: "${formData.po_date}",
+            },
+            validationConditions: [
+                { field: "quantity", op: "GT", value: 0, errMessage: "Quantity harus > 0" },
+                { field: "unit_price", op: "GT", value: 0, errMessage: "Unit Price harus > 0" },
+                { field: "quantity", op: "LTE", value: "${stock_available}", errMessage: "Quantity melebihi stock tersedia" },
+            ],
+            submitFilters: [
+                { field: "line_total", op: "GT", value: 0, errMessage: "Total line item harus > 0" },
+            ],
+        },
+        example2Label: "Contoh untuk inventory movement — dengan stockImpacts dan auto-fill nama item dari barcode.",
+        example2: {
+            _id: "inventory_movement",
+            key: "inventory_movement",
+            _vsb: "ACTIVE",
+            title: "Item: ${item_code} - Stock: ${stock_qty}",
+            subtitle: "Gudang: ${warehouse}, Lokasi: ${location}",
+            showTotal: true,
+            total: "Total Item: ${COUNT()}, Total Qty: ${SUM(stock_qty)}",
+            quantityField: "stock_qty",
+            primaryKey: "item_code",
+            refs: [
+                { ilKey: "item_name", reportType: "reports", collection: "inventory_master", searchKey: "${item_code}", returnKey: "name" },
+                { ilKey: "unit", reportType: "reports", collection: "inventory_master", searchKey: "${item_code}", returnKey: "unit" },
+            ],
+            stockImpacts: [
+                { fromField: "old_qty", toField: "new_qty", impactField: "warehouse_stock", operation: "SUBTRACT" },
+            ],
+            validationConditions: [
+                { field: "new_qty", op: "GTE", value: 0, errMessage: "Stock tidak boleh negatif" },
+            ],
+        },
+        example3Label: "Contoh untuk damage assessment — dengan submitFilters dan needOutsideVal dari form induk.",
+        example3: {
+            _id: "damage_assessment",
+            key: "damage_assessment",
+            _vsb: "ACTIVE",
+            title: "Kerusakan di ${damage_location}",
+            subtitle: "Tipe: ${damage_type}, Biaya Estimasi: ${estimated_cost}",
+            showTotal: true,
+            total: "Total Biaya: ${SUM(estimated_cost)}",
+            quantityField: "quantity",
+            refs: [
+                { ilKey: "severity_level", reportType: "reports", collection: "damage_types", searchKey: "${damage_type}", returnKey: "severity" },
+            ],
+            needOutsideVal: {
+                claim_id: "${formData.claim_id}",
+                assessed_by: "${userId}",
+                assessed_date: "${TODAY}",
+            },
+            submitFilters: [
+                { field: "damage_photo", op: "IS_NOT_NULL", errMessage: "Foto kerusakan wajib diisi" },
+                { field: "estimated_cost", op: "GT", value: 0, errMessage: "Biaya estimasi harus > 0" },
+            ],
+        },
+        indexes: [
+            { name: "key_1", keys: ["key"], unique: true },
+            { name: "_vsb_1", keys: ["_vsb"], unique: false },
+        ],
+        relations: [
+            { field: "key", to: "FORM_CHILD", kind: "referenced by (insertStyle / loadStyle)" },
+        ],
+    },
+}
