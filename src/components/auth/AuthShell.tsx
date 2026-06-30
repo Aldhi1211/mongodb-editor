@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { BookOpen } from "lucide-react";
 import s from "./montra.module.css";
 import BrandPanel from "./BrandPanel";
 
@@ -25,9 +27,18 @@ export default function AuthShell({ children }: { children: React.ReactNode }) {
       {/* LEFT · FORM */}
       <main className="relative flex min-h-screen flex-col px-6 py-8 sm:px-10 lg:px-16 lg:py-10">
         {/* Brand mark */}
-        <header className={`${s.rise} flex items-center gap-2.5`}>
-          <BrandMark />
-          <span className="text-[17px] font-semibold tracking-tight text-neutral-950">Montra</span>
+        <header className={`${s.rise} flex items-center justify-between gap-2.5`}>
+          <div className="flex items-center gap-2.5">
+            <BrandMark />
+            <span className="text-[17px] font-semibold tracking-tight text-neutral-950">Montra</span>
+          </div>
+          <Link
+            href="/docs"
+            aria-label="Documentation"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
+          >
+            <BookOpen size={17} />
+          </Link>
         </header>
 
         {/* Card */}

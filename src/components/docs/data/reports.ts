@@ -1,0 +1,325 @@
+import { f } from "../helpers"
+import type { Collection } from "../types"
+import { fieldTypeCollections } from "./fieldtypes"
+
+/** Tipe field di report memakai daftar FieldType yang sama dengan FORM di Workflows. */
+const FIELD_TYPE_IDS = Object.keys(fieldTypeCollections)
+
+export const reportsCollections: Record<string, Collection> = {
+    reports: {
+        section: "Reports",
+        description: "Report adalah definisi/template laporan yang menentukan data apa yang dikumpulkan, dari mana sumbernya, bagaimana ditampilkan & diekspor, serta siapa yang boleh mengaksesnya.",
+        long:
+            "Report adalah definisi (template) laporan yang disimpan di collection `reports`. Satu dokumen Report tidak menyimpan baris datanya, melainkan menjelaskan cara membentuk laporan: data apa yang dikumpulkan (lewat `fields`), dari mana data diambil (lewat `triggers` + `reportVariable`), bagaimana ditampilkan dan diekspor (lewat `tableConfig`), serta siapa yang boleh mengakses (lewat `groups`).\n\n" +
+            "Data report tidak diisi manual. Ketika sebuah task [[workflows|Workflow]] selesai pada node yang terdaftar di `triggers`, sistem mengubah data task tersebut menjadi satu baris laporan (ReportContent) lewat proses `mapModel`. Untuk tiap kolom, nilainya diambil dari `reportVariable` — sebuah template `${...}` yang menunjuk ke field di task.\n\n" +
+            "Hasilnya disimpan sebagai baris data dan ditampilkan sebagai tabel sesuai `tableConfig`, serta dapat diekspor (PDF/Excel/CSV). Karena seluruh struktur laporan didefinisikan sebagai data (JSON), report baru dapat dirancang dan diubah tanpa mengubah kode program.",
+        meta: { documents: "varies", indexed: true },
+        notes: [
+            { kind: "note", text: "`triggers` adalah bagian terpenting. Isinya daftar node workflow dalam format `workflowId.nodeId` (mis. `workflowHarianReal.form6`). Ketika node tersebut selesai, satu baris data report di-generate/diperbarui." },
+            { kind: "note", text: "`reportVariable` menarik nilai dari task ke kolom report. Polanya `${<workflowId>.<nodeId>.formData.<key>}` — mis. `${workflowHarianReal.form6.formData.wh_name}` mengambil field `wh_name` dari node `form6`. Detail sintaks ada di [[replacer_overview|Replacer]]." },
+            { kind: "note", text: "Template `${DATETIME|offset|format}` dipakai untuk nilai tanggal dinamis. `offset` berformat `tahun.bulan.hari.jam.menit.detik` — mis. `0.0.-5.0.0.0` berarti 5 hari lalu, `0.0.5.0.0.0` berarti 5 hari ke depan. Pada `format`, `__` menjadi spasi. Dipakai mis. di `min`/`max` untuk membatasi rentang tanggal." },
+            { kind: "note", text: "Pada template, `$.$` adalah wildcard yang otomatis diisi `workflowId` dan `nodeId` task yang sedang berjalan — merujuk \"form task saat ini\" tanpa hardcode nama workflow/node. Mis. `${$.$.formData.statusKaryawan}`. Bandingkan dengan bentuk eksplisit `${workflowHarianReal.form6.formData...}`." },
+            { kind: "note", text: "`conditions` adalah gerbang generate report (bukan routing). Memakai struktur [[validationcondition|ValidationCondition]] yang sama dengan node [[validation|Validation]], tetapi logikanya **AND** — semua kondisi harus terpenuhi agar report dibuat; jika satu saja gagal, submission dilewati tanpa menghasilkan baris. Bandingkan: `routes` di Validation memakai first-match (yang pertama cocok menang). Kosong → report selalu dibuat." },
+            { kind: "note", text: "Field bertipe `ITEM_LIST` adalah daftar bersarang: tiap item punya `fields` (sub-kolom) sendiri. `title`/`subtitle` adalah template judul item yang memakai key sub-field, mis. `{tanggal}`." },
+            { kind: "note", text: "`updateSpecifics` membuat update parsial: saat baris yang cocok (berdasarkan `indexKey`/`filterKeys`) di-trigger ulang, hanya field yang terdaftar yang ditimpa, sisanya tetap. Berguna ketika satu baris diisi bertahap oleh beberapa node — mis. node penyimpanan hanya isi `lokasi_penyimpanan`, node approval hanya isi `status`/`keterangan`. Tanpa ini, update berikutnya menimpa seluruh baris dan menghapus data node sebelumnya." },
+            { kind: "note", text: "Manual vs otomatis: `updateSpecifics` (manual) selalu meng-update kolom yang sama persis seperti yang didaftarkan — kontrol ketat. `updateSpecificsBasedOnAvailContent: true` (otomatis) mengabaikan list manual dan meng-update semua key yang kebetulan terisi di submission saat itu — fleksibel saat field yang dikirim tidak menentu. Flag boolean ini menang/override list manual." },
+            { kind: "warn", text: "`contetExportAble` pada `tableConfig` memang tertulis `contet` (bukan `content`) — ini typo yang sudah terlanjur ada di sistem. Tulis persis seperti itu agar terbaca." },
+            { kind: "note", text: "Fitur lanjutan yang tidak muncul di contoh ini tapi didukung Report: `schedulingNewDataReport` (generate data terjadwal/cron), `recap` (rekapitulasi), `customExport`/[[splitcontent|splitContents]] (pecah daftar objek jadi baris terpisah), [[splitarraycontent|splitArrayContent]] (pecah array nilai sederhana), `takeDataReport` (ambil data dari report lain), serta `defaultFilter`/`defaultSortBy`." },
+        ],
+        flow: [
+            { title: "Task workflow selesai", detail: "Node yang cocok dengan `triggers` (mis. `form6`) disubmit." },
+            { title: "mapModel(taskProgress)", detail: "Tiap kolom diisi dari `reportVariable` `${...}`." },
+            { title: "ReportContent disimpan", detail: "Satu baris data tersimpan ke MongoDB." },
+            { title: "Tabel & Export", detail: "Ditampilkan sesuai `tableConfig`, bisa diekspor PDF/Excel/CSV." },
+        ],
+        fields: [
+            // --- Identitas & indexing ---
+            f("_id", "objectid", true, "Unique document identifier.", { group: "Identitas & indexing" }),
+            f("key", "string", true, "Kunci unik report. Dipakai sistem untuk mereferensikan report ini.", { eg: { key: "reportTutupToko" } }),
+            f("name", "string", true, "Nama report yang ditampilkan ke user."),
+            f("description", "string", false, "Deskripsi report."),
+            f("order", "number", false, "Urutan tampil report di daftar menu. Report diurutkan menaik berdasarkan `order`."),
+            f("indexKey", "string", true, "Kunci utama tiap baris data — penanda unik tiap baris. Contoh `_taskId`: tiap baris diidentifikasi oleh ID task."),
+            f("indexKeys", "array", false, "Daftar kunci index tambahan (composite).", { of: "string" }),
+            f("filterKeys", "array", false, "Daftar `key` field yang dipakai untuk pause/filter konten (pauseContent).", { of: "string", eg: { filterKeys: ["tanggal", "nama_item"] } }),
+            f("updateSpecifics", "array", false, "Daftar `key` field yang boleh di-update saat baris report yang sudah ada diperbarui (partial update). Kosong → seluruh baris ditimpa (upsert); diisi → hanya field ini yang di-`$set`, field lain dibiarkan.", { of: "string", eg: { updateSpecifics: ["status", "lokasi_penyimpanan", "keterangan"] } }),
+            f("updateSpecificsBasedOnAvailContent", "boolean", false, "Default `false`. Jika `true`, `updateSpecifics` diisi otomatis dari semua key yang ada di data submission saat itu — berguna saat field yang dikirim berbeda-beda tiap submission. Flag ini meng-override (menimpa) isi `updateSpecifics` manual."),
+            f("countIndexs", "array", false, "Daftar kolom hasil perhitungan (formula) — tiap elemen menghitung nilai baru dari field lain. Struktur tiap elemen dijelaskan pada [[countindex|CountIndex]].", { of: "object", eg: { countIndexs: [{ numbers: ["periodePertamaBefore", "penambah"], operators: ["+"], resultKey: "periodePertama" }] } }),
+            // --- Sumber data ---
+            f("triggers", "array", true, "Daftar node workflow (`workflowId.nodeId`) yang memicu pengisian report. Ketika salah satu node selesai, satu baris data di-generate via `mapModel`.", { group: "Sumber data", of: "string", eg: { triggers: ["workflowHarianReal.form6", "workflowHarianReal.formApproval6"] } }),
+            f("triggerExclusives", "array", false, "Trigger eksklusif untuk kondisi khusus.", { of: "string" }),
+            f("sources", "array", false, "Sumber data eksternal (ReportOuter).", { of: "object" }),
+            f("conditions", "array", false, "Gerbang generate: report hanya dibuat bila SEMUA kondisi terpenuhi (logika AND). Tiap elemen mengikuti struktur [[validationcondition|ValidationCondition]] (`field op value`). Kosong → report selalu dibuat.", { of: "object", eg: { conditions: [{ field: "${$.$.formData.statusKaryawan}", op: "EQUALS", value: "Active" }] } }),
+            // --- Kolom data (fields[]) ---
+            f("fields", "array", true, "Definisi tiap kolom data report. Tiap elemen adalah sebuah Field (bisa bersarang untuk `ITEM_LIST`).", { group: "Kolom data (fields[])", of: "object" }),
+            f("reportVariable", "string", false, "Sumber nilai kolom — template `${...}` yang menarik data dari task ke report. Inti dari pengisian report.", { depth: 1, eg: { reportVariable: "${workflowHarianReal.form6.formData.wh_name}" } }),
+            f("key", "string", true, "Nama kolom internal. Menjadi key pada data report.", { depth: 1 }),
+            f("label", "string", true, "Judul kolom yang ditampilkan.", { depth: 1 }),
+            f("type", "string", true, "Tipe field — menentukan cara render & input. Memakai daftar FieldType yang sama dengan field FORM di [[fields|Fields]] (Workflows). Klik nilainya untuk membuka halaman tipe terkait.", { depth: 1, enumValues: FIELD_TYPE_IDS }),
+            f("order", "number", false, "Urutan kolom.", { depth: 1 }),
+            f("isRequired", "boolean", false, "Wajib diisi atau tidak.", { depth: 1 }),
+            f("isDisabled", "boolean", false, "Field dikunci (read-only).", { depth: 1 }),
+            f("isVisible", "boolean", false, "Tampil di UI atau tidak. Mis. `wh_code` dengan `isVisible: false` tetap disimpan tapi disembunyikan.", { depth: 1 }),
+            f("isVisibleExport", "boolean", false, "Tampil saat export atau tidak.", { depth: 1 }),
+            f("placeholder", "string", false, "Teks placeholder pada input.", { depth: 1 }),
+            f("showFormat", "string", false, "Format tampilan tanggal. Khusus type `DATETIME`.", { depth: 1 }),
+            f("submitFormat", "string", false, "Format saat nilai disimpan. Khusus type `DATETIME`.", { depth: 1 }),
+            f("decodeFormat", "string", false, "Format saat nilai di-parse. Khusus type `DATETIME`.", { depth: 1 }),
+            f("min", "string", false, "Batas bawah rentang, biasanya template `${DATETIME|...}`. Khusus type `DATETIME`.", { depth: 1 }),
+            f("max", "string", false, "Batas atas rentang. Khusus type `DATETIME`.", { depth: 1 }),
+            f("title", "string", false, "Template judul tiap item, memakai key sub-field, mis. `{tanggal}`. Khusus type `ITEM_LIST`.", { depth: 1 }),
+            f("subtitle", "string", false, "Template subjudul tiap item. Khusus type `ITEM_LIST`.", { depth: 1 }),
+            f("showTotal", "boolean", false, "Tampilkan total jumlah item. Khusus type `ITEM_LIST`.", { depth: 1 }),
+            f("itemAddable", "boolean", false, "Boleh tambah item. Khusus type `ITEM_LIST`.", { depth: 1 }),
+            f("itemUpdatable", "boolean", false, "Boleh edit item. Khusus type `ITEM_LIST`.", { depth: 1 }),
+            f("itemDeletable", "boolean", false, "Boleh hapus item. Khusus type `ITEM_LIST`.", { depth: 1 }),
+            f("fields", "array", false, "Sub-field di tiap item. Strukturnya sama dengan Field. Khusus type `ITEM_LIST`.", { depth: 1, of: "object" }),
+            f("options", "array", false, "Pilihan untuk field. Khusus type `RADIO`.", { depth: 1, of: "string", eg: { options: ["Video", "Foto"] } }),
+            f("triggerView", "object", false, "Logika UI dinamis: memetakan nilai pilihan ke daftar field yang ditampilkan. Khusus type `RADIO`.", { depth: 1, eg: { triggerView: { Video: ["video"], Foto: ["image"] } } }),
+            f("isHDSV", "boolean", false, "Hidden Don't Submit Value — nilai disembunyikan dan tidak ikut disubmit. Umum pada field media.", { depth: 1 }),
+            // --- tableConfig ---
+            f("tableConfig", "object", true, "Mengatur perilaku tabel dan export laporan.", { group: "tableConfig (perilaku tabel & export)" }),
+            f("contentAddAble", "boolean", false, "User boleh menambah baris data secara manual.", { depth: 1 }),
+            f("contentEditAble", "boolean", false, "Baris data boleh diedit.", { depth: 1 }),
+            f("contentDeleteAble", "boolean", false, "Baris data boleh dihapus.", { depth: 1 }),
+            f("contetExportAble", "boolean", false, "Laporan boleh diekspor. (Nama field memang typo `contet`, bukan `content`.)", { depth: 1 }),
+            f("contentImportAble", "boolean", false, "Data boleh diimpor.", { depth: 1 }),
+            f("fieldAddAble", "boolean", false, "Struktur kolom boleh ditambah.", { depth: 1 }),
+            f("fieldEditAble", "boolean", false, "Struktur kolom boleh diedit.", { depth: 1 }),
+            f("fieldDeleteAble", "boolean", false, "Struktur kolom boleh dihapus.", { depth: 1 }),
+            f("rowHeight", "number", false, "Tinggi baris tabel (px).", { depth: 1 }),
+            f("createAt", "boolean", false, "Tampilkan kolom waktu dibuat.", { depth: 1 }),
+            f("withTitle", "boolean", false, "Tampilkan judul pada tabel.", { depth: 1 }),
+            f("contentFilterByCreatedAtRangeAble", "boolean", false, "Boleh memfilter berdasarkan rentang tanggal dibuat.", { depth: 1 }),
+            f("filterByMonth", "boolean", false, "Aktifkan filter per bulan.", { depth: 1 }),
+            f("filterByYear", "boolean", false, "Aktifkan filter per tahun.", { depth: 1 }),
+            // --- Akses & status ---
+            f("groups", "array", false, "Grup yang memiliki report ini (mis. admin).", { group: "Akses & status", of: "string" }),
+            f("userGroups", "array", false, "Grup user yang boleh melihat report.", { of: "string" }),
+            f("_vsb", "string", false, "Status/visibility report.", { enumValues: ["ACTIVE", "PAUSED"] }),
+            f("isHidden", "boolean", false, "Disembunyikan dari menu atau tidak."),
+            f("clickable", "boolean", false, "Baris bisa diklik untuk melihat detail."),
+            f("accessibleForDistinct", "boolean", false, "Boleh dipakai sebagai sumber data distinct (mis. dropdown master data)."),
+            f("showBtns", "array", false, "Tombol tambahan kustom.", { of: "string" }),
+            f("isPersonalQuery", "boolean", false, "Jika `true`, query bersifat per-user (hanya data milik user). Jika `false`, semua data terlihat."),
+            f("validationOperators", "array", false, "Operator validasi tambahan.", { of: "object" }),
+            // --- Metadata ---
+            f("createAt", "number", false, "Waktu dibuat (epoch milidetik).", { group: "Metadata" }),
+            f("updateAt", "number", false, "Waktu diperbarui (epoch milidetik)."),
+            f("_class", "string", false, "Penanda class Java untuk deserialisasi (Spring Data)."),
+        ],
+        example: {
+            _id: "63512286ae03a13d464a16e5",
+            key: "reportTutupToko",
+            filterKeys: [],
+            countIndexs: [],
+            indexKeys: [],
+            indexKey: "_taskId",
+            fields: [
+                { reportVariable: "${workflowHarianReal.form6.formData.wh_name}", key: "wh_name", label: "Outlet", type: "TEXT", isRequired: true, isDisabled: false, aggregateShow: true, order: 0, isVisible: true },
+                { reportVariable: "${workflowHarianReal.formApproval6.userInfo.name}", key: "approved_by", label: "Approved By", type: "TEXT", isRequired: true, isDisabled: false, aggregateShow: true, isVisible: true, order: 1 },
+                { reportVariable: "${workflowHarianReal.form6.formData.nama}", key: "nama", label: "Nama Penanggung Jawab", type: "TEXT", isRequired: true, isDisabled: false, aggregateShow: true, isVisible: true, order: 1 },
+                { reportVariable: "${workflowHarianReal.form6.formData.wh_code}", key: "wh_code", label: "WH Code", type: "TEXT", isRequired: true, isDisabled: false, aggregateShow: true, order: 2, isVisible: false },
+                {
+                    reportVariable: "${$.$.metadata.updateAt}", key: "indexKey", label: "Index Key", type: "DATETIME",
+                    isVisibleExport: false, isRequired: true, isDisabled: false, order: 3, pickers: ["DATE", "TIME"],
+                    showFormat: "dd MMM yyyy, HH.mm", submitFormat: "yyyy-MM-dd HH:mm:ss", decodeFormat: "yyyy-MM-dd HH:mm",
+                    min: "${DATETIME|0.0.-5.0.0.0|yyyy-MM-dd__HH:mm}", max: "${DATETIME|0.0.5.0.0.0|yyyy-MM-dd__HH:mm}",
+                    aggregateShow: true, isVisible: false,
+                },
+                {
+                    reportVariable: "${workflowHarianReal.form6.formData.videos}", key: "videos", label: "Videos", type: "ITEM_LIST", order: 4,
+                    isRequired: true, isDisabled: false, aggregateShow: true, title: "{tanggal}", subtitle: "{nama_area}", showTotal: false,
+                    itemAddable: true, itemUpdatable: true, itemDeletable: false,
+                    fields: [
+                        { label: "Tanggal", type: "TEXT", key: "tanggal", isVisible: false, isDisabled: true, order: 5, copyFrom: "${DATETIME|0.0.0.0.0.0|dd-MM-yyyy}", aggregateShow: true },
+                        { label: "Nama Area", type: "TEXT", key: "nama_area", isRequired: true, isDisabled: false, isVisibleExport: false, isVisible: true, order: 4 },
+                        { key: "videoDalem", label: "Video", type: "VIDEO", isRequired: true, isDisabled: false, pickers: ["REAR_CAM"], aggregateShow: true, order: 5 },
+                    ],
+                },
+                {
+                    reportVariable: "${workflowHarianReal.form6.formData.laporan}", key: "laporan", label: "Laporan Wrapping", type: "ITEM_LIST", order: 5,
+                    isRequired: true, isDisabled: false, aggregateShow: true, title: "{tanggal}", subtitle: "{deskripsi}", showTotal: false,
+                    itemAddable: true, itemUpdatable: true, itemDeletable: true,
+                    fields: [
+                        { label: "Tanggal", type: "TEXT", key: "tanggal", isVisible: false, isDisabled: true, order: 1, copyFrom: "${DATETIME|0.0.0.0.0.0|dd-MM-yyyy}", aggregateShow: true },
+                        { label: "Deskripsi Laporan", type: "TEXT", key: "deskripsi", isRequired: true, isDisabled: false, isVisibleExport: false, isVisible: true, order: 2 },
+                        { isRequired: true, options: ["Video", "Foto"], label: "Tipe File", type: "RADIO", key: "tipe", isDisabled: false, order: 3, triggerView: { Video: ["video"], Foto: ["image"] }, aggregateShow: true },
+                        { key: "video", label: "Video", type: "VIDEO", isRequired: true, isDisabled: false, pickers: ["REAR_CAM"], isVisible: true, isHDSV: true, aggregateShow: true, order: 4 },
+                        { key: "image", label: "Image", type: "IMAGE", isRequired: true, isVisible: true, isHDSV: true, isDisabled: false, pickers: ["REAR_CAM"], aggregateShow: true, order: 5 },
+                    ],
+                },
+                { reportVariable: "${workflowHarianReal.form6.formData.ket}", key: "ket", label: "Keterangan", type: "TEXT_AREA", isRequired: false, isDisabled: false, isVisible: false, aggregateShow: true, order: 5 },
+                { reportVariable: "${workflowHarianReal.form6.formData.ket}", key: "ket_approval", label: "Keterangan", type: "TEXT_AREA", isRequired: false, isDisabled: false, aggregateShow: true, order: 6 },
+                { reportVariable: "${DATETIME|0.0.0.0.0.0|yyyy-MM-dd|${workflowHarianReal.form6.metadata.updateAt}|yyyy-MM-dd__HH:mm:ss}", key: "tanggal", label: "Tanggal", placeholder: "Tanggal", type: "TEXT", isVisible: true, order: 0, isRequired: false },
+            ],
+            triggers: ["workflowHarianReal.form6", "workflowHarianReal.formApproval6"],
+            triggerExclusives: [],
+            name: "Report Tutup Toko dan Wrapping",
+            order: 15,
+            isHidden: false,
+            showBtns: [],
+            groups: ["kwetiauahoadmin"],
+            userGroups: [],
+            _vsb: "ACTIVE",
+            sources: [],
+            description: "Report Tutup Toko dan Wrapping",
+            createAt: 1667968247456,
+            updateAt: 1667968247456,
+            accessibleForDistinct: true,
+            clickable: true,
+            tableConfig: {
+                contentAddAble: false, contentEditAble: false, contentDeleteAble: false, contetExportAble: true, contentImportAble: false,
+                fieldDeleteAble: false, fieldEditAble: false, fieldAddAble: false, rowHeight: 80, createAt: true, withTitle: false,
+                contentFilterByCreatedAtRangeAble: true, filterByMonth: false, filterByYear: false,
+            },
+            validationOperators: [],
+            isPersonalQuery: false,
+            _class: "biz.byonchat.v2.services.reports.Report",
+        },
+        indexes: [
+            { name: "key_1", keys: ["key"], unique: true },
+        ],
+        relations: [
+            { field: "triggers", to: "nodes", kind: "references" },
+            { field: "fields.type", to: "fields", kind: "references" },
+            { field: "fields.reportVariable", to: "workflows", kind: "references" },
+            { field: "countIndexs", to: "countindex", kind: "references" },
+            { field: "splitContents", to: "splitcontent", kind: "references" },
+            { field: "splitArrayContent", to: "splitarraycontent", kind: "references" },
+            { field: "conditions", to: "validationcondition", kind: "references" },
+        ],
+    },
+
+    countindex: {
+        section: "Reports",
+        description: "CountIndex adalah kolom hasil perhitungan (formula) di Report — membuat field baru yang nilainya dihitung dari field lain memakai operasi aritmetika, bukan diambil langsung dari form.",
+        long:
+            "CountIndex adalah elemen di dalam `countIndexs` pada [[reports|Report]]. Ia membuat sebuah kolom yang nilainya tidak diisi user, melainkan dihitung dari field lain — mirip rumus/formula pada kolom hasil di spreadsheet.\n\n" +
+            "Perhitungannya disusun dari dua daftar yang berpasangan: `numbers` (operand, diproses berurutan) dan `operators` (operasi di antara operand). Jumlah `operators` selalu satu lebih sedikit dari `numbers`, karena tiap operator berada di antara dua operand. Hasilnya disimpan ke kolom yang namanya ditentukan oleh `resultKey`.\n\n" +
+            "Setelah dihitung, hasilnya bisa melewati pasca-pemrosesan (mis. dipaksa positif lewat `positiveResult`, atau diganti `defaultNumber` saat minus lewat `defaultIfMinus`). Selain mode aritmetika umum, CountIndex juga punya mode khusus kalkulasi PPh 21 tahunan progresif yang diaktifkan lewat `pkp`.",
+        meta: { documents: "—", indexed: false },
+        notes: [
+            { kind: "note", text: "Pola `numbers` vs `operators`: `numbers = [A, B, C]` dengan `operators = [\"+\", \"-\"]` menghasilkan `A + B - C`. Pada contoh, 2 operand + 1 operator → `periodePertamaBefore + penambah`." },
+            { kind: "note", text: "Operand pada `numbers` umumnya berupa `key` field lain di report yang sama. Hasil disimpan sebagai kolom baru bernama `resultKey`." },
+            { kind: "note", text: "Pasca-pemrosesan hasil: `positiveResult` → hasil dijadikan nilai mutlak (selalu positif); `defaultIfMinus` → jika hasil < 0 diganti `defaultNumber`; `defaultIfPositive` → jika hasil > 0 diganti `defaultNumber`; `defaultNumber` → nilai pengganti (default `0.0`). Contoh: kolom \"sisa stok\" yang tidak boleh minus → `defaultIfMinus: true`." },
+            { kind: "note", text: "Mode PPh 21: bila `pkp` diisi, CountIndex menghitung pajak penghasilan tahunan progresif (5% s/d 60 jt, 15% s/d 250 jt, 25% s/d 500 jt, 30% s/d 5 M, 35% di atas 5 M) — bukan aritmetika `numbers`/`operators` biasa." },
+        ],
+        flow: [
+            { title: "numbers", detail: "Operand berurutan, mis. `periodePertamaBefore`, `penambah`." },
+            { title: "operators", detail: "Operasi di antara operand (`+`, `-`, ...)." },
+            { title: "Pasca-proses", detail: "`positiveResult` / `defaultIfMinus` / mode PPh21." },
+            { title: "resultKey", detail: "Hasil disimpan sebagai kolom baru di report." },
+        ],
+        fields: [
+            f("numbers", "array", true, "Operand — daftar `key` field/nilai yang dihitung, diproses berurutan.", { of: "string", eg: { numbers: ["periodePertamaBefore", "penambah"] } }),
+            f("operators", "array", true, "Operator di antara operand. Jumlahnya selalu satu lebih sedikit dari `numbers`.", { of: "string", enumValues: ["+", "-", "*", "/"], eg: { operators: ["+"] } }),
+            f("resultKey", "string", true, "Key kolom hasil — tempat menyimpan hasil hitungan.", { eg: { resultKey: "periodePertama" } }),
+            f("positiveResult", "boolean", false, "Jika `true`, hasil dijadikan nilai mutlak (selalu positif)."),
+            f("defaultIfMinus", "boolean", false, "Jika hasil < 0, ganti dengan `defaultNumber`."),
+            f("defaultIfPositive", "boolean", false, "Jika hasil > 0, ganti dengan `defaultNumber`."),
+            f("defaultIfPositiveConvert", "boolean", false, "Default `true`. Saat `defaultIfPositive` aktif dan hasil ≤ 0, hasil dikonversi jadi positif."),
+            f("defaultNumber", "number", false, "Nilai pengganti default. Default `0.0`."),
+            f("pkp", "number", false, "Penghasilan Kena Pajak. Bila diisi, mengaktifkan mode kalkulasi PPh 21 tahunan progresif (menggantikan aritmetika `numbers`/`operators`)."),
+        ],
+        example: {
+            numbers: ["periodePertamaBefore", "penambah"],
+            operators: ["+"],
+            resultKey: "periodePertama",
+        },
+        example2Label: "Tiga operand — periodePertamaBefore + penambah − pengurang.",
+        example2: {
+            numbers: ["periodePertamaBefore", "penambah", "pengurang"],
+            operators: ["+", "-"],
+            resultKey: "periodePertama",
+        },
+        indexes: [],
+        relations: [
+            { field: "countIndexs", to: "reports", kind: "belongs to" },
+        ],
+    },
+
+    splitcontent: {
+        section: "Reports",
+        description: "SplitContent (SplitRecursiveContent) adalah fitur pemecah: mengubah satu field ITEM_LIST atau recursive field menjadi banyak baris report — satu item = satu baris.",
+        long:
+            "SplitContent adalah elemen di dalam `splitContents` pada [[reports|Report]]. Secara normal, sebuah field daftar (ITEM_LIST atau [[recursive_fields|recursive field]]) dengan banyak item tersimpan menumpuk dalam satu baris report. Dengan SplitContent, tiap item dalam daftar itu dipecah menjadi baris report tersendiri — satu item = satu baris.\n\n" +
+            "Konfigurasi paling dasar hanya butuh `key`, yaitu nama field daftar yang akan dipecah. Contoh `{ key: \"skemaPembayaran\" }` berarti: ambil field `skemaPembayaran`, lalu jadikan tiap item di dalamnya sebagai satu baris report. Tiap baris hasil mewarisi data umum dari report induk, namun field `key` itu sendiri dibuang dan diganti dengan isi item-nya (ditambah field `total`).\n\n" +
+            "SplitContent bekerja bersama [[countindex|CountIndex]]: perhitungan `countIndexs` dijalankan pada tiap baris hasil pecahan. Untuk pemecahan bertingkat (item di dalam item), tersedia `subFormChild`.",
+        meta: { documents: "—", indexed: false },
+        notes: [
+            { kind: "note", text: "Ilustrasi: satu task dengan `skemaPembayaran = [termin 1, termin 2, termin 3]`. Tanpa split → 1 baris berisi array. Dengan `splitContents: [{ key: \"skemaPembayaran\" }]` → 3 baris report terpisah, masing-masing satu termin." },
+            { kind: "note", text: "Tiap baris hasil mewarisi data report induk; field `key` dibuang dan diganti isi item, lalu ditambah field `total`. Key bersarang dapat diratakan (flatten) ke level atas lewat `arrKeyValues`." },
+            { kind: "note", text: "`replaceKey` men-set/mengganti nilai field saat split. **Key**-nya adalah `key` field di report (mis. `karungBerat`); **value**-nya diambil dari form, boleh memakai replacer `${...}`. Agar template `${...}` diproses, set `rkUsBcUtil: true`. Contoh: `karungBerat` diisi gabungan `nomor_karung` dan `beratPerKarung` dari form." },
+            { kind: "note", text: "SplitContent dan [[countindex|CountIndex]] berjalan bersama — `countIndexs` dihitung ulang per baris hasil split, bukan sekali di induk." },
+        ],
+        flow: [
+            { title: "Ambil field `key`", detail: "Resolve nilai field daftar (mis. `skemaPembayaran`)." },
+            { title: "Pecah jadi items", detail: "Daftar ITEM_LIST dikonversi menjadi item-item." },
+            { title: "Per item", detail: "Warisi data induk, buang `key`, masukkan isi item + `total`." },
+            { title: "countIndexs & flatten", detail: "Jalankan `countIndexs`, ratakan `arrKeyValues`." },
+            { title: "Simpan 1 row", detail: "Upsert tiap item sebagai satu baris report." },
+        ],
+        fields: [
+            f("key", "string", true, "Key field ITEM_LIST/recursive yang akan dipecah. Inti dari fitur ini.", { eg: { key: "skemaPembayaran" } }),
+            f("arrKeyValues", "array", false, "Daftar key bersarang yang diratakan (flatten) ke baris hasil — nested object dipindah jadi field top-level.", { of: "string" }),
+            f("reportId", "string", false, "ID report tujuan jika hasil split disimpan ke report lain."),
+            f("subFormChild", "object", false, "Konfigurasi split bertingkat/rekursif (item di dalam item). Memuat `loopKey`, `reportId`, `collection`, `params`."),
+            f("forAudit", "boolean", false, "Jika `true`, split data dari field tipe AUDIT (memakai splitAudit)."),
+            f("replaceKey", "object", false, "Map untuk men-set/mengganti nilai field saat split. Key = `key` field di report (mis. `karungBerat`); value = nilai dari form (boleh template `${...}`/replacer).", { eg: { replaceKey: { karungBerat: "${$.$.formData.nomor_karung} - ${$.$.formData.beratPerKarung}" } } }),
+            f("rkUsBcUtil", "boolean", false, "Jika `true`, `replaceKey` diproses lewat BcUtil (mendukung template `${...}`)."),
+            f("bulkWrite", "boolean", false, "Jika `true`, tulis semua baris hasil split secara batch (lebih efisien untuk item banyak)."),
+        ],
+        example: {
+            key: "skemaPembayaran",
+        },
+        example2Label: "Dengan replaceKey + template (rkUsBcUtil).",
+        example2: {
+            key: "skemaPembayaran",
+            replaceKey: { karungBerat: "${$.$.formData.nomor_karung} - ${$.$.formData.beratPerKarung}" },
+            rkUsBcUtil: true,
+        },
+        indexes: [],
+        relations: [
+            { field: "splitContents", to: "reports", kind: "belongs to" },
+            { field: "key", to: "fields", kind: "references" },
+            { field: "reportId", to: "reports", kind: "references" },
+        ],
+    },
+
+    splitarraycontent: {
+        section: "Reports",
+        description: "SplitArrayContent memecah sebuah array nilai sederhana (mis. dari field CHECKBOX) — untuk tiap elemen array, dibuatkan satu baris report lengkap dengan field tunggal berisi nilai elemen tersebut.",
+        long:
+            "SplitArrayContent adalah objek `splitArrayContent` pada [[reports|Report]]. Seperti [[splitcontent|splitContents]], ia memecah data menjadi beberapa baris, tetapi caranya berbeda: SplitArrayContent bekerja pada sebuah array nilai sederhana — paling sering hasil dari field [[CHECKBOX]] (pilihan ganda menghasilkan array).\n\n" +
+            "Untuk tiap nilai dalam array, sistem menyetel satu field tunggal (`key`) sama dengan nilai itu, lalu meng-generate ulang report dari awal (`validateAndSave`) seolah-olah submission terpisah. Perhatikan pola penamaan pada contoh: sumbernya `karungBerats` (jamak, array) sedangkan hasilnya disimpan ke `karungBerat` (tunggal) di tiap baris.\n\n" +
+            "Berbeda dengan `splitContents` yang memecah field ITEM_LIST (array objek) menjadi kolom-kolom detail, SplitArrayContent hanya mengisi satu field per baris dan konfigurasinya sederhana — cukup `key` dan `reportVariable`.",
+        meta: { documents: "—", indexed: false },
+        notes: [
+            { kind: "note", text: "Ilustrasi: `karungBerats = [50, 48, 52]` → menghasilkan 3 baris report, masing-masing dengan field `karungBerat` berisi satu nilai (50, 48, 52). Tiap baris diproses ulang lewat `validateAndSave` seolah submission terpisah." },
+            { kind: "note", text: "Sumber array biasanya berasal dari field [[CHECKBOX]] (pilihan ganda). `reportVariable` menunjuk ke array tersebut, dan `key` adalah nama field tunggal yang diisi tiap elemen." },
+            { kind: "warn", text: "Saat memproses, sistem menyetel `splitArrayContent` menjadi `null` pada report turunan untuk mencegah rekursi tak terbatas — tiap baris hasil tidak akan dipecah lagi." },
+            { kind: "note", text: "Perbedaan dengan [[splitcontent|splitContents]]: SplitArrayContent memakai **array nilai sederhana** (tunggal, satu objek config), sedangkan splitContents memakai **field ITEM_LIST** (array objek, bisa banyak config dengan fitur kaya seperti `replaceKey`/`subFormChild`)." },
+        ],
+        flow: [
+            { title: "Ambil array", detail: "Resolve `reportVariable`, mis. `${$.form3.formData.karungBerats}`." },
+            { title: "Untuk tiap elemen", detail: "Iterasi tiap nilai dalam array." },
+            { title: "Set field `key`", detail: "Field tunggal (mis. `karungBerat`) = nilai elemen ini." },
+            { title: "validateAndSave", detail: "Generate report penuh lagi → 1 baris per elemen." },
+        ],
+        fields: [
+            f("key", "string", true, "Nama field tunggal yang akan diisi tiap elemen array.", { eg: { key: "karungBerat" } }),
+            f("reportVariable", "string", true, "Sumber array — template `${...}` yang menunjuk ke daftar nilai (mis. dari field CHECKBOX).", { eg: { reportVariable: "${$.form3.formData.karungBerats}" } }),
+        ],
+        example: {
+            key: "karungBerat",
+            reportVariable: "${$.form3.formData.karungBerats}",
+        },
+        indexes: [],
+        relations: [
+            { field: "splitArrayContent", to: "reports", kind: "belongs to" },
+            { field: "key", to: "fields", kind: "references" },
+            { field: "reportVariable", to: "workflows", kind: "references" },
+        ],
+    },
+}
