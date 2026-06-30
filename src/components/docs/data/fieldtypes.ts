@@ -156,7 +156,7 @@ export const fieldTypeCollections: Record<string, Collection> = {
     DROPDOWN: {
         section: "Workflows",
         description: "DROPDOWN adalah salah satu jenis (type) field pada FORM.",
-        long: "DROPDOWN merupakan salah satu nilai `type` pada [[fields|Fields]] di sebuah FORM. (Konten dokumentasi DROPDOWN akan dilengkapi kemudian.)",
+        long: "DROPDOWN merupakan salah satu nilai `type` pada [[fields|Fields]] di sebuah FORM. Field ini menampilkan daftar pilihan, dan user hanya boleh memilih satu nilai (String). DROPDOWN diimplementasikan oleh class Java yang sama dengan [[RADIO]] dan [[CHECKBOX]] (class `Selection`), sehingga semua properti [[selection|Selection]] berlaku di sini — perbedaannya hanya pada tampilan UI dan jumlah nilai yang bisa dipilih (RADIO dan DROPDOWN satu nilai, CHECKBOX banyak). Opsi DROPDOWN bisa ditentukan secara statis lewat `options`, maupun diambil dinamis dari database lewat `reportType`/`collection`/`searchKey`. DROPDOWN juga mendukung `triggerReload` (me-reload nilai field lain saat nilainya berubah) dan `triggerOption` (me-reload opsi field lain berdasarkan nilai yang dipilih). Saat import data dari Excel, nilai dibersihkan dari format numerik (\"3.0\" → \"3\") lalu divalidasi terhadap opsi yang tersedia; jika tidak cocok, record ditandai invalid.",
         meta: { documents: "—", indexed: false },
         notes: [
             selectionNote,
@@ -278,7 +278,7 @@ export const fieldTypeCollections: Record<string, Collection> = {
     CHECKBOX: {
         section: "Workflows",
         description: "CHECKBOX adalah salah satu jenis (type) field pada FORM.",
-        long: "CHECKBOX merupakan salah satu nilai `type` pada [[fields|Fields]] di sebuah FORM. (Konten dokumentasi CHECKBOX akan dilengkapi kemudian.)",
+        long: "CHECKBOX merupakan salah satu nilai `type` pada [[fields|Fields]] di sebuah FORM. Berbeda dengan [[DROPDOWN]] dan [[RADIO]] yang hanya boleh memilih satu nilai, CHECKBOX memungkinkan user memilih banyak nilai sekaligus (disimpan sebagai List). CHECKBOX diimplementasikan oleh class Java yang sama dengan DROPDOWN dan RADIO (class `Selection`), sehingga semua properti [[selection|Selection]] berlaku di sini. Opsi bisa ditentukan secara statis lewat `options`, maupun diambil dinamis dari database lewat `reportType`/`collection`/`searchKey`. Secara default opsi ditampilkan sebagai daftar centang biasa; dengan `uiType: \"DIALOG\"` opsi ditampilkan dalam modal/dialog, cocok untuk pilihan yang banyak atau di perangkat mobile. Khusus CHECKBOX juga tersedia `btnSelectAll` (tombol pilih semua). Catatan penting: `triggerReload` hanya berfungsi pada CHECKBOX bila `uiType` diset ke `\"DIALOG\"`.",
         meta: { documents: "—", indexed: false },
         notes: [
             selectionNote,

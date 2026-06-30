@@ -415,7 +415,8 @@ export function RestartJarPanel() {
                         <DocImage src="/docs/restart_jar_manual_2_pastiinjarmatii.png" alt="Memastikan jar sudah mati" caption="PID jar yang di-kill sudah hilang dari daftar." />
                     </li>
                     <li>
-                        <p className="prose"><strong>Jalankan kembali.</strong> Start ulang jar secara manual: <code className="icode">{'sudo nohup java -jar byonchat-v3aming.jar -Dspring.config.additional-location="config/" > /dev/null 2>&1&'}</code></p>
+                        <p className="prose"><strong>Jalankan kembali.</strong> Start ulang jar secara manual dengan perintah berikut:</p>
+                        <CommandBlock command={'sudo nohup java -jar byonchat-v3aming.jar -Dspring.config.additional-location="config/" > /dev/null 2>&1&'} />
                         <DocImage src="/docs/restart_jar_manual_3_jalaninkembali.png" alt="Menjalankan kembali jar secara manual" caption="Jar dijalankan kembali dengan nohup di background." />
                     </li>
                     <li>
