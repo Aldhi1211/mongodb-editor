@@ -361,7 +361,7 @@ export default function MongoDocs({ onClose }: { onClose?: () => void }) {
                             <SectionHeading>Example document</SectionHeading>
                             <p className="prose">A representative document as stored in the <code className="icode">{activeId}</code> collection.</p>
                             <CodeBlock fname={`${activeId}.example.json`} data={current.example} copied={copied} onCopy={handleCopy} />
-                            {current.example2 && (
+                            {current.example2 != null && (
                                 <>
                                     <hr className="divider" />
                                     <h3 style={{ fontSize: 15, fontWeight: 650, color: "var(--text)", margin: "0 0 10px", letterSpacing: "-0.01em" }}>
@@ -370,7 +370,7 @@ export default function MongoDocs({ onClose }: { onClose?: () => void }) {
                                     <CodeBlock fname={`${activeId}.example2.json`} data={current.example2} copied={copied} onCopy={handleCopy} />
                                 </>
                             )}
-                            {current.example3 && (
+                            {current.example3 != null && (
                                 <>
                                     <hr className="divider" />
                                     <h3 style={{ fontSize: 15, fontWeight: 650, color: "var(--text)", margin: "0 0 10px", letterSpacing: "-0.01em" }}>
@@ -379,7 +379,7 @@ export default function MongoDocs({ onClose }: { onClose?: () => void }) {
                                     <CodeBlock fname={`${activeId}.example3.json`} data={current.example3} copied={copied} onCopy={handleCopy} />
                                 </>
                             )}
-                            {current.example4 && (
+                            {current.example4 != null && (
                                 <>
                                     <hr className="divider" />
                                     <h3 style={{ fontSize: 15, fontWeight: 650, color: "var(--text)", margin: "0 0 10px", letterSpacing: "-0.01em" }}>
