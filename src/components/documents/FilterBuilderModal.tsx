@@ -202,6 +202,8 @@ interface DropdownProps {
   searchPlaceholder?: string;
   selectedVal: any;
   minWidth?: number;
+  allowCustom?: boolean;
+  getCustomItem?: (text: string) => any;
   onSelect: (it: any) => void;
 }
 
@@ -220,6 +222,18 @@ function Dropdown(p: DropdownProps) {
       (it) => p.getMain(it).toLowerCase().includes(q) || (p.getSide ? String(p.getSide(it)).toLowerCase().includes(q) : false),
     );
   }, [filter, p.items, p.searchable]);
+
+  // When custom entry is allowed, offer the typed text as a selectable option
+  // (unless it already matches an existing item exactly).
+  const customText = filter.trim();
+  const showCustom =
+    !!p.allowCustom &&
+    !!customText &&
+    !p.items.some((it) => String(p.getMain(it)).toLowerCase() === customText.toLowerCase());
+  const displayItems = useMemo(
+    () => (showCustom ? [...filtered, { __custom: true, __text: customText }] : filtered),
+    [filtered, showCustom, customText],
+  );
 
   const reposition = useCallback(() => {
     const el = triggerRef.current;
@@ -255,14 +269,18 @@ function Dropdown(p: DropdownProps) {
   }, [open, reposition]);
 
   // reposition once the menu has rendered (so height is known for flip-up)
-  useEffect(() => { if (open) reposition(); }, [open, filtered.length, reposition]);
+  useEffect(() => { if (open) reposition(); }, [open, displayItems.length, reposition]);
 
-  const choose = (it: any) => { setOpen(false); p.onSelect(it); };
+  const choose = (it: any) => {
+    setOpen(false);
+    if (it && it.__custom) { p.onSelect(p.getCustomItem ? p.getCustomItem(it.__text) : it.__text); return; }
+    p.onSelect(it);
+  };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "ArrowDown") { e.preventDefault(); setActiveIdx((i) => Math.min(filtered.length - 1, i + 1)); }
+    if (e.key === "ArrowDown") { e.preventDefault(); setActiveIdx((i) => Math.min(displayItems.length - 1, i + 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setActiveIdx((i) => Math.max(0, i - 1)); }
-    else if (e.key === "Enter") { e.preventDefault(); if (filtered[activeIdx]) choose(filtered[activeIdx]); }
+    else if (e.key === "Enter") { e.preventDefault(); if (displayItems[activeIdx]) choose(displayItems[activeIdx]); }
     else if (e.key === "Escape") { e.preventDefault(); setOpen(false); triggerRef.current?.focus(); }
   };
 
@@ -301,8 +319,26 @@ function Dropdown(p: DropdownProps) {
             </div>
           )}
           <div className={s.menuList}>
-            {filtered.length === 0 && <div className={s.menuEmpty}>No matches</div>}
-            {filtered.map((it, idx) => {
+            {displayItems.length === 0 && <div className={s.menuEmpty}>No matches</div>}
+            {displayItems.map((it, idx) => {
+              if (it && it.__custom) {
+                return (
+                  <button
+                    key="__custom"
+                    type="button"
+                    role="option"
+                    aria-selected={false}
+                    className={`${s.menuItem} ${idx === activeIdx ? s.active : ""}`}
+                    onMouseEnter={() => setActiveIdx(idx)}
+                    onClick={() => choose(it)}
+                  >
+                    <span className={s.miMain}>
+                      Use <span className={p.mono ? s.isMono : ""}>“{it.__text}”</span>
+                    </span>
+                    <span className={p.sideClass === "type" ? s.miType : s.miMql}>custom</span>
+                  </button>
+                );
+              }
               const val = p.getVal(it);
               const selected = val === p.selectedVal;
               return (
@@ -512,8 +548,8 @@ export default function FilterBuilderModal(p: Props) {
   /* ---- render helpers ---- */
   const renderValue = (c: Cond) => {
     const op = c.operator, t = typeOf(c.field);
-    if (!c.field) return <input className={s.vinput} type="text" disabled placeholder="—" />;
-    if (op === "$null" || op === "$notnull") return <input className={s.vinput} type="text" disabled placeholder="no value needed" />;
+    if (!c.field) return <input className={s.vinput} type="text" value="" readOnly disabled placeholder="—" />;
+    if (op === "$null" || op === "$notnull") return <input className={s.vinput} type="text" value="" readOnly disabled placeholder="no value needed" />;
     // operator-specific inputs take precedence over field-type inputs
     if (op === "$type")
       return (
@@ -571,7 +607,9 @@ export default function FilterBuilderModal(p: Props) {
           mono
           minWidth={240}
           searchable
-          searchPlaceholder="Search fields…"
+          allowCustom
+          getCustomItem={(text) => ({ name: text, type: typeOf(text) })}
+          searchPlaceholder="Search or type a field…"
           getMain={(it) => it.name}
           getVal={(it) => it.name}
           getSide={(it) => it.type}
@@ -674,7 +712,7 @@ export default function FilterBuilderModal(p: Props) {
             </div>
             <span className={s.crumbSep} />
             {p.canDelete && mode === "visual" && (
-              <button type="button" className={`${s.btn} ${s.btnDangerGhost}`} onClick={handleDeleteMatching}>Delete matching</button>
+              <button type="button" className={`${s.btn} ${s.btnDanger}`} onClick={handleDeleteMatching}>Delete matching</button>
             )}
             <button type="button" className={`${s.btn} ${s.btnDangerGhost}`} onClick={handleReset}>Reset</button>
             <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={handleApply}>Apply</button>

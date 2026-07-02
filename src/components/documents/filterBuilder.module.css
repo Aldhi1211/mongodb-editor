@@ -78,6 +78,8 @@
 .btnPrimary:hover { background: #222; }
 .btnDangerGhost { background: transparent; color: var(--sec); border-color: var(--line); }
 .btnDangerGhost:hover { background: #fef2f2; color: var(--danger); border-color: #fecaca; }
+.btnDanger { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btnDanger:hover { background: #b91c1c; border-color: #b91c1c; }
 
 .iconBtn {
   appearance: none; cursor: pointer; background: transparent;
