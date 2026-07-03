@@ -224,6 +224,14 @@ export const workflowsCollections: Record<string, Collection> = {
         example2: {
             type: "DIRECT",
         },
+        example3Label: "Contoh `BY_PARAM` — assignee ditentukan dari parameter user management, di sini nilai `branch` diambil dari field pada form sebelumnya (`form2`) via replacer.",
+        example3: {
+            type: "BY_PARAM",
+            params: {
+                branch: "${$.form2.formData.branch}",
+            },
+            useByFromIfReject: false,
+        },
         indexes: [],
         relations: [],
     },
