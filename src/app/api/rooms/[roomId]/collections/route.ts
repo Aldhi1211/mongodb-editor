@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken'
 import { getRoomDb } from '@/lib/roomDb'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
+import { assertRoomMember, RoomAccessError } from '@/lib/roomAccess'
 
 function getUser(req: Request) {
     const auth = req.headers.get('authorization')
@@ -22,6 +23,13 @@ export async function GET(
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { roomId } = await params
+
+    try {
+        await assertRoomMember(roomId, user.userId)
+    } catch (err) {
+        if (err instanceof RoomAccessError) return NextResponse.json({ error: err.message }, { status: err.status })
+        throw err
+    }
 
     let db
     try {
@@ -66,6 +74,14 @@ export async function POST(
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { roomId } = await params
+
+    try {
+        await assertRoomMember(roomId, user.userId)
+    } catch (err) {
+        if (err instanceof RoomAccessError) return NextResponse.json({ error: err.message }, { status: err.status })
+        throw err
+    }
+
     const { name } = await req.json()
     if (!name?.trim()) return NextResponse.json({ error: 'Collection name is required' }, { status: 400 })
 

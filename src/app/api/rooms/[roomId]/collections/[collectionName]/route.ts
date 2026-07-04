@@ -5,6 +5,7 @@ import clientPromise from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { broadcast } from "./stream/broadcaster";
 import { EJSON } from "bson";
+import { assertRoomMember, RoomAccessError } from "@/lib/roomAccess";
 
 function getUser(req: Request) {
   const auth = req.headers.get("authorization");
@@ -28,6 +29,14 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { roomId, collectionName } = await params;
+
+  try {
+    await assertRoomMember(roomId, user.userId);
+  } catch (err) {
+    if (err instanceof RoomAccessError) return NextResponse.json({ error: err.message }, { status: err.status });
+    throw err;
+  }
+
   const { searchParams } = new URL(req.url);
 
   const limit = parseInt(searchParams.get("limit") || "50");
@@ -82,6 +91,14 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { roomId, collectionName } = await params;
+
+  try {
+    await assertRoomMember(roomId, user.userId);
+  } catch (err) {
+    if (err instanceof RoomAccessError) return NextResponse.json({ error: err.message }, { status: err.status });
+    throw err;
+  }
+
   const rawPayload = await req.json();
   const payload = EJSON.deserialize(rawPayload, { relaxed: false });
 
@@ -145,6 +162,14 @@ export async function PATCH(
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { roomId, collectionName } = await params;
+
+  try {
+    await assertRoomMember(roomId, user.userId);
+  } catch (err) {
+    if (err instanceof RoomAccessError) return NextResponse.json({ error: err.message }, { status: err.status });
+    throw err;
+  }
+
   const { newName } = await req.json();
   if (!newName?.trim()) return NextResponse.json({ error: "New name is required" }, { status: 400 });
   if (newName === collectionName) return NextResponse.json({ error: "New name must be different" }, { status: 400 });
@@ -205,6 +230,13 @@ export async function DELETE(
   }
 
   const { roomId, collectionName } = await context.params;
+
+  try {
+    await assertRoomMember(roomId, user.userId);
+  } catch (err) {
+    if (err instanceof RoomAccessError) return NextResponse.json({ error: err.message }, { status: err.status });
+    throw err;
+  }
 
   if (!collectionName) {
     return NextResponse.json(

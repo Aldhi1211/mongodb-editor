@@ -5,6 +5,7 @@ import { getRoomDb } from '@/lib/roomDb'
 import clientPromise from '@/lib/mongodb'
 import { broadcast } from '../stream/broadcaster'
 import { EJSON } from 'bson'
+import { assertRoomMember, RoomAccessError } from '@/lib/roomAccess'
 
 function getUser(req: Request) {
     const auth = req.headers.get('authorization')
@@ -24,6 +25,14 @@ export async function PUT(
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { roomId, collectionName, documentId } = await params
+
+    try {
+        await assertRoomMember(roomId, user.userId)
+    } catch (err) {
+        if (err instanceof RoomAccessError) return NextResponse.json({ error: err.message }, { status: err.status })
+        throw err
+    }
+
     const rawPayload = await req.json()
     const payload = EJSON.deserialize(rawPayload, { relaxed: false })
     const { _id: _, ...safePayload } = payload
@@ -100,6 +109,14 @@ export async function DELETE(
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { roomId, collectionName, documentId } = await params
+
+    try {
+        await assertRoomMember(roomId, user.userId)
+    } catch (err) {
+        if (err instanceof RoomAccessError) return NextResponse.json({ error: err.message }, { status: err.status })
+        throw err
+    }
+
     const db = await getRoomDb(roomId)
     const collection = db.collection(collectionName)
 

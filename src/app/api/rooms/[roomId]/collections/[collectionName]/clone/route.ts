@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { getRoomDb } from "@/lib/roomDb";
 import clientPromise from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
+import { assertRoomMember, RoomAccessError } from "@/lib/roomAccess";
 
 function getUser(req: Request) {
   const auth = req.headers.get("authorization");
@@ -22,6 +23,14 @@ export async function POST(
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { roomId, collectionName } = await params;
+
+  try {
+    await assertRoomMember(roomId, user.userId);
+  } catch (err) {
+    if (err instanceof RoomAccessError) return NextResponse.json({ error: err.message }, { status: err.status });
+    throw err;
+  }
+
   const { targetName } = await req.json();
   if (!targetName?.trim()) return NextResponse.json({ error: "Target name is required" }, { status: 400 });
   if (targetName === collectionName) return NextResponse.json({ error: "Target name must be different from source" }, { status: 400 });

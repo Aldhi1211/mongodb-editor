@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import clientPromise from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import crypto from "crypto";
+import { assertRoomMember, RoomAccessError } from "@/lib/roomAccess";
 
 function encrypt(text: string) {
   const iv = crypto.randomBytes(16);
@@ -101,6 +102,18 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { roomId } = await params;
+
+  let member;
+  try {
+    ({ member } = await assertRoomMember(roomId, user.userId));
+  } catch (err) {
+    if (err instanceof RoomAccessError) return NextResponse.json({ error: err.message }, { status: err.status });
+    throw err;
+  }
+
+  if (member.role !== "owner") {
+    return NextResponse.json({ error: "Forbidden: only the room owner can delete this room" }, { status: 403 });
+  }
 
   const client = await clientPromise;
   const db = client.db("workflowbuilder_core");
