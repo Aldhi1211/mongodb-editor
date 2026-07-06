@@ -3,6 +3,9 @@ import { useEffect, useState } from 'react'
 export function useRooms() {
     const [rooms, setRooms] = useState<any[]>([])
     const [loading, setLoading] = useState(false)
+    // `loading` starts false before the first fetch kicks off, so consumers that
+    // must wait for room data (redirects, invalid-room checks) use `loaded`.
+    const [loaded, setLoaded] = useState(false)
 
     const loadRooms = async () => {
         try {
@@ -14,6 +17,7 @@ export function useRooms() {
             setRooms(Array.isArray(data) ? data : [])
         } finally {
             setLoading(false)
+            setLoaded(true)
         }
     }
 
@@ -21,5 +25,5 @@ export function useRooms() {
         loadRooms()
     }, [])
 
-    return { rooms, loading, reload: loadRooms }
+    return { rooms, loading, loaded, reload: loadRooms }
 }

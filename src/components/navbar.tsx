@@ -24,15 +24,15 @@ import {
 } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 import MongoDocs from "@/components/docs/MongoDocs"
+import { roomViewPath } from "@/lib/routes"
 
 export type NavView = "collections" | "audit" | "charts" | "drafts"
 
 type Room = { _id: string; name: string }
 
 interface NavBarMenuProps {
-    /** The active view. When omitted the navbar runs in standalone mode (links navigate to `/`). */
+    /** The active view, used for the nav highlight. */
     view?: NavView
-    onViewChange?: (view: NavView) => void
     /** Clusters (rooms) for the selector dropdown. */
     rooms?: Room[]
     activeRoomId?: string | null
@@ -85,7 +85,6 @@ function DraftBadge({ count }: { count: number }) {
 
 export function NavBarMenu({
     view,
-    onViewChange,
     rooms = [],
     activeRoomId,
     onSelectRoom,
@@ -122,11 +121,6 @@ export function NavBarMenu({
             window.removeEventListener("storage", update)
         }
     }, [])
-
-    const goView = (v: NavView) => {
-        if (onViewChange) onViewChange(v)
-        else router.push(`/?view=${v}`)
-    }
 
     const handleLogout = () => {
         localStorage.removeItem("token")
@@ -189,18 +183,28 @@ export function NavBarMenu({
                                     )}
 
                                     <div className="space-y-1">
-                                        {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
-                                            <SheetClose asChild key={id}>
-                                                <button
-                                                    onClick={() => goView(id)}
-                                                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-[13px] font-medium ${view === id ? "bg-neutral-900 text-white" : "text-neutral-600 hover:bg-neutral-100"}`}
+                                        {NAV_ITEMS.map(({ id, label, icon: Icon }) =>
+                                            activeRoomId ? (
+                                                <SheetClose asChild key={id}>
+                                                    <Link
+                                                        href={roomViewPath(activeRoomId, id)}
+                                                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-[13px] font-medium ${view === id ? "bg-neutral-900 text-white" : "text-neutral-600 hover:bg-neutral-100"}`}
+                                                    >
+                                                        <Icon className="h-4 w-4" />
+                                                        {label}
+                                                        {id === "drafts" && <DraftBadge count={draftCount} />}
+                                                    </Link>
+                                                </SheetClose>
+                                            ) : (
+                                                <span
+                                                    key={id}
+                                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-[13px] font-medium text-neutral-300"
                                                 >
                                                     <Icon className="h-4 w-4" />
                                                     {label}
-                                                    {id === "drafts" && <DraftBadge count={draftCount} />}
-                                                </button>
-                                            </SheetClose>
-                                        ))}
+                                                </span>
+                                            ),
+                                        )}
                                     </div>
 
                                     <SheetClose asChild>
@@ -289,15 +293,22 @@ export function NavBarMenu({
                             const active = view === id
                             return (
                                 <li key={id}>
-                                    <button
-                                        onClick={() => goView(id)}
-                                        className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors cursor-pointer ${active ? "text-neutral-950" : "text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100"}`}
-                                    >
-                                        <Icon className="h-4 w-4" />
-                                        {label}
-                                        {id === "drafts" && <DraftBadge count={draftCount} />}
-                                        {active && <span className="absolute left-3 right-3 -bottom-[7px] h-[2px] rounded bg-neutral-950" />}
-                                    </button>
+                                    {activeRoomId ? (
+                                        <Link
+                                            href={roomViewPath(activeRoomId, id)}
+                                            className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors ${active ? "text-neutral-950" : "text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100"}`}
+                                        >
+                                            <Icon className="h-4 w-4" />
+                                            {label}
+                                            {id === "drafts" && <DraftBadge count={draftCount} />}
+                                            {active && <span className="absolute left-3 right-3 -bottom-[7px] h-[2px] rounded bg-neutral-950" />}
+                                        </Link>
+                                    ) : (
+                                        <span className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium text-neutral-300 cursor-default">
+                                            <Icon className="h-4 w-4" />
+                                            {label}
+                                        </span>
+                                    )}
                                 </li>
                             )
                         })}

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { jwtDecode } from "jwt-decode";
 import { EJSON } from "bson";
 import DocumentEditor from "@/components/documents/DocumentEditor";
+import { roomCollectionPath, roomCollectionsPath } from "@/lib/routes";
 
 /**
  * Thin wrapper for the standalone `/edit` route. Reads roomId / collection / mode
@@ -58,15 +59,16 @@ export default function EditPageClient() {
   }, []);
 
   // This route is reached via "Edit in New Tab", so it has no in-app history to
-  // go back to. On close (back / cancel / after save) navigate to the home SPA
-  // with this room + collection restored — opening the collection's document table.
-  // Use a real navigation (not router.push) so it fires reliably even when called
-  // right after the async save; sessionStorage survives a same-tab reload.
+  // go back to. On close (back / cancel / after save) navigate straight to the
+  // collection's document table — the URL now carries room + collection.
+  // Use a real navigation (not router.push) so it fires reliably even when
+  // called right after the async save.
   const handleClose = () => {
-    if (roomId) sessionStorage.setItem("nav:roomId", roomId);
-    if (collection) sessionStorage.setItem("nav:collection", collection);
-    else sessionStorage.removeItem("nav:collection");
-    window.location.assign("/");
+    window.location.assign(
+      roomId && collection ? roomCollectionPath(roomId, collection)
+      : roomId ? roomCollectionsPath(roomId)
+      : "/",
+    );
   };
 
   if (!authed) return null;

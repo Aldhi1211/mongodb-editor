@@ -53,13 +53,20 @@ src/
 │   │               ├── [documentId]/route.ts  # GET / PUT / DELETE single document
 │   │               ├── clone/      # Clone collection
 │   │               └── stream/     # SSE broadcaster
+│   ├── room/[roomId]/              # Room-scoped app pages (all client, auth-guarded via RoomShell)
+│   │   ├── layout.tsx              # Wraps children in <RoomShell> (auth, rooms, role, cluster switch)
+│   │   ├── collection/page.tsx     # Collection list
+│   │   ├── collection/[collectionName]/page.tsx  # Document table + inline DocumentEditor
+│   │   ├── charts/page.tsx         # ChartListView
+│   │   ├── audit/page.tsx          # AuditViewer
+│   │   └── drafts/page.tsx         # DraftsView
 │   ├── edit/                       # Full-page Monaco editor (new + edit document)
-│   ├── drafts/                     # Draft list page
-│   ├── chart/                      # Chart builder
-│   └── page.tsx                    # Home — room list + collection list + document table
+│   ├── drafts/                     # Redirect stub → /?view=drafts
+│   ├── chart/                      # Redirect stub → /?view=charts; chart/[id] = chart builder
+│   └── page.tsx                    # Redirect hub — auth → last/first room URL; empty state if no rooms
 │
 ├── components/
-│   ├── rooms/                      # Room list, dialogs, member management
+│   ├── rooms/                      # RoomShell (room context), dialogs, member management
 │   ├── collections/                # CollectionList, CollectionContextMenu
 │   ├── documents/                  # DocumentTable, useDocuments hook, context menu, viewer
 │   └── ui/                         # shadcn primitives
@@ -71,8 +78,20 @@ src/
     ├── mongodb.ts                  # Core MongoClient singleton (clientPromise)
     ├── roomDb.ts                   # Per-room client (cached, ping-checked, auto-reconnect)
     ├── ejsonShell.ts               # EJSON formatting helpers
+    ├── routes.ts                   # URL scheme helpers (roomCollectionPath, roomViewPath, switchRoomPath)
     └── auth.ts                     # JWT helpers
 ```
+
+### Routing
+
+Navigation state lives in the URL (no SPA state hub anymore):
+
+- `/` — redirect hub: JWT guard → `router.replace` to `localStorage["mongoedit:lastRoomId"]` (or the first room); zero rooms → empty state. Translates legacy `/?view=` links.
+- `/room/[roomId]/collection` — collection list; `/room/[roomId]/collection/[collectionName]` — document table (+ inline editor as **local state**, not URL).
+- `/room/[roomId]/charts` | `/audit` | `/drafts` — the other navbar views.
+- All `/room/…` pages are wrapped by `RoomShell` (`src/components/rooms/RoomShell.tsx`) via `src/app/room/[roomId]/layout.tsx`: JWT auth guard (redirects to `/login`), single `useRooms()` fetch, `userRole` derivation, invalid/foreign roomId → redirect to `/`, cluster switching (`switchRoomPath` keeps the sub-view), and the manage-clusters modal. Pages render their own `NavBarMenu` with values from `useRoomShell()`.
+- Draft continue: the drafts page pushes `roomCollectionPath(draft.roomId, draft.collection)` plus one-shot `?new=1` or `?edit=<docId>`; the collection page reads it in its `useState` initializer then strips it with `router.replace`.
+- Always build these URLs via `src/lib/routes.ts` — never hand-format them.
 
 ### Key Data Flows
 
@@ -80,9 +99,9 @@ src/
 
 **Document query**: `DocumentTable` (Filter or Query mode) → `useDocuments.queryData(filter)` → same GET endpoint with `?filter=<EJSON-encoded>`
 
-**Document edit (inline)**: `DocumentTable` right-click → "Update" → `onEdit(doc)` → home SPA renders `<DocumentEditor>` inline with `initialDoc`.
+**Document edit (inline)**: `DocumentTable` right-click → "Update" → `onEdit(doc)` → the `/room/[roomId]/collection/[collectionName]` page renders `<DocumentEditor>` inline with `initialDoc` (local `editing` state).
 
-**Document edit (new tab)**: `DocumentTable` right-click → "Edit in New Tab" → `localStorage.setItem("edit_doc", …)` (localStorage, not sessionStorage — it must cross tabs) → `window.open("/edit?roomId=&collection=&docId=")` → `EditPageClient` (auth-guarded) reads `edit_doc`. On close/save it does `window.location.assign("/")` with `nav:roomId`/`nav:collection` set, so the home SPA reopens the collection.
+**Document edit (new tab)**: `DocumentTable` right-click → "Edit in New Tab" → `localStorage.setItem("edit_doc", …)` (localStorage, not sessionStorage — it must cross tabs) → `window.open("/edit?roomId=&collection=&docId=")` → `EditPageClient` (auth-guarded) reads `edit_doc`. On close/save it does `window.location.assign` straight to `/room/{roomId}/collection/{collection}` — the URL carries the state, no sessionStorage handoff.
 
 **Document save**: `DocumentEditor.handleSave()` → `POST`/`PUT /api/rooms/[roomId]/collections/[collectionName]/[documentId]` → clears draft + sets `savedRef` → dispatch `mongoedit:saved` CustomEvent → `onClose()`.
 
@@ -231,7 +250,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 
 - **Don't** use `EJSON.stringify(doc)` (relaxed mode) for display — use `EJSON.serialize(doc, { relaxed: false })`.
 - **Don't** save draft on unmount if `hasChangesRef.current === false` — this corrupts existing drafts by overwriting with incomplete data.
-- **Don't** store `userRole` in sessionStorage — derive it from live room data via `onRoleResolved` callback in `RoomList`.
-- The `/drafts` page uses `mongoedit:saved` CustomEvent (not remount) to refresh the list after navigating back — Next.js router cache keeps it mounted.
+- **Don't** store `userRole` in sessionStorage — it is derived from live room data in `RoomShell` (`useRoomShell().userRole`).
+- The drafts page (`/room/[roomId]/drafts`) uses `mongoedit:saved` CustomEvent (not remount) to refresh the list after navigating back — Next.js router cache keeps it mounted.
 - Room URI is AES-256-CBC encrypted; key is `ROOM_SECRET` env var (must be 32-byte hex = 64 hex chars).
 - `serverSelectionTimeoutMS: 8000` in `roomDb.ts` — if a room's MongoDB is unreachable you get a ~8s timeout then 500. Check Atlas IP whitelist (add `0.0.0.0/0` for Vercel).
