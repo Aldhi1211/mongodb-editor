@@ -232,6 +232,14 @@ export const workflowsCollections: Record<string, Collection> = {
             },
             useByFromIfReject: false,
         },
+        example4Label: "Contoh `BY_FORM` — assignee ditentukan dari form lain via `refNode`: task diberikan ke user yang mengerjakan form yang dirujuk (di sini node `form1` pada workflow `workflowVisitation`).",
+        example4: {
+            type: "BY_FORM",
+            refNode: {
+                workflowId: "workflowVisitation",
+                nodeId: "form1",
+            },
+        },
         indexes: [],
         relations: [],
     },
