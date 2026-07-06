@@ -1,33 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { jwtDecode } from "jwt-decode";
-import { EJSON } from "bson";
 
 import { NavBarMenu, type NavView } from "@/components/navbar";
 import { useRooms } from "@/components/rooms/useRooms";
 import ManageClustersModal from "@/components/rooms/ManageClustersModal";
-import CollectionList from "@/components/collections/CollectionList";
-import DocumentTable from "@/components/documents/DocumentTable";
-import DocumentEditor from "@/components/documents/DocumentEditor";
-import AuditViewer from "@/components/AuditViewer";
-import ChartListView from "@/components/charts/ChartListView";
-import DraftsView, { type Draft } from "@/components/drafts/DraftsView";
-import { getEjsonIdString } from "@/lib/ejsonShell";
+import { roomViewPath } from "@/lib/routes";
 
-type Editing = { mode: "new" | "edit"; docId?: string; doc?: any } | null;
-
-function getCurrentUserId(): string | null {
-  try {
-    const token = localStorage.getItem("token");
-    if (!token) return null;
-    return JSON.parse(atob(token.split(".")[1])).userId ?? null;
-  } catch {
-    return null;
-  }
-}
-
+/** Legacy `/?view=` links (old SPA + the /drafts and /chart redirect stubs). */
 function mapViewParam(raw: string | null): NavView | null {
   if (raw === "data" || raw === "collections") return "collections";
   if (raw === "audit") return "audit";
@@ -36,21 +18,17 @@ function mapViewParam(raw: string | null): NavView | null {
   return null;
 }
 
+/**
+ * Redirect hub. Navigation now lives in the URL (`/room/[roomId]/…`); this page
+ * only authenticates, picks the last-visited (or first) cluster, and redirects
+ * there. Users with no clusters get the empty state + manage modal.
+ */
 export default function Home() {
   const router = useRouter();
-  const { rooms, reload } = useRooms();
+  const { rooms, loaded, reload } = useRooms();
 
   const [token, setToken] = useState<string | null>(null);
-  const [view, setView] = useState<NavView>("collections");
-  const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
-  const [collection, setCollection] = useState<string | null>(null);
-  const [editing, setEditing] = useState<Editing>(null);
   const [manageOpen, setManageOpen] = useState(false);
-  const [collectionSearch, setCollectionSearch] = useState("");
-  const [addNonce, setAddNonce] = useState(0);
-
-  // Guard: don't persist nav state before the initial restore has run.
-  const navRestored = useRef(false);
 
   useEffect(() => {
     const t = localStorage.getItem("token");
@@ -63,182 +41,33 @@ export default function Home() {
         return;
       }
       setToken(t);
-      const v = mapViewParam(new URLSearchParams(window.location.search).get("view"));
-      if (v) setView(v);
-      const savedRoomId = sessionStorage.getItem("nav:roomId");
-      const savedCollection = sessionStorage.getItem("nav:collection");
-      if (savedRoomId) setActiveRoomId(savedRoomId);
-      if (savedCollection) setCollection(savedCollection);
-      navRestored.current = true;
     } catch {
       localStorage.removeItem("token");
       router.replace("/login");
     }
   }, [router]);
 
-  // Auto-select the first cluster if none restored once rooms have loaded.
+  // Once rooms are known, forward to the last-visited cluster (or the first one).
   useEffect(() => {
-    if (!navRestored.current) return;
-    if (!activeRoomId && rooms.length) setActiveRoomId(rooms[0]._id);
-  }, [rooms, activeRoomId]);
-
-  // Persist last-visited cluster + collection across navigations.
-  useEffect(() => {
-    if (!navRestored.current) return;
-    if (activeRoomId) sessionStorage.setItem("nav:roomId", activeRoomId);
-  }, [activeRoomId]);
-  useEffect(() => {
-    if (!navRestored.current) return;
-    if (collection) sessionStorage.setItem("nav:collection", collection);
-    else sessionStorage.removeItem("nav:collection");
-  }, [collection]);
-
-  // Resolve the current user's role for the active cluster from live room data.
-  const userRole = useMemo(() => {
-    const uid = getCurrentUserId();
-    const room = rooms.find((r) => r._id === activeRoomId);
-    const member = room?.members?.find((m: any) => m.userId === uid);
-    return member?.role ?? "viewer";
-  }, [rooms, activeRoomId]);
-
-  const activeRoomName = useMemo(
-    () => rooms.find((r) => r._id === activeRoomId)?.name ?? null,
-    [rooms, activeRoomId],
-  );
-
-  // ── handlers ──
-  const handleSelectRoom = (id: string) => {
-    setActiveRoomId(id);
-    setCollection(null);
-    setEditing(null);
-    setCollectionSearch("");
-    setView("collections");
-    setManageOpen(false);
-  };
-
-  const handleViewChange = (v: NavView) => {
-    setView(v);
-    if (v === "collections") { setCollection(null); setEditing(null); }
-  };
-
-  const handleSelectCollection = (name: string) => {
-    setCollection(name);
-    setEditing(null);
-    setCollectionSearch("");
-  };
-
-  // The collection list is the only surface the navbar search acts on.
-  const inCollectionList = view === "collections" && !!activeRoomId && !collection && !editing;
-  const inDocumentTable = view === "collections" && !!activeRoomId && !!collection && !editing;
-  const canWrite = userRole !== "viewer";
-
-  const handleEditDoc = (doc: any) => {
-    // Table rows are EJSON-*serialized* plain objects; convert back to BSON so the
-    // editor matches the /edit path (which parses from EJSON to BSON before display).
-    const docId = getEjsonIdString(doc._id);
-    let bson: any = doc;
-    try { bson = EJSON.deserialize(doc, { relaxed: false }); } catch { /* fall back to raw */ }
-    setEditing({ mode: "edit", docId, doc: bson });
-  };
-
-  const handleNewDoc = () => setEditing({ mode: "new" });
-
-  const handleContinueDraft = (draft: Draft) => {
-    setActiveRoomId(draft.roomId);
-    setCollection(draft.collection);
-    let doc: any = null;
-    if (draft.type === "edit" && draft.originalDoc) {
-      try { doc = EJSON.parse(draft.originalDoc); } catch { /* editor restores from draft */ }
-    }
-    setEditing(
-      draft.type === "add"
-        ? { mode: "new" }
-        : { mode: "edit", docId: draft.docId, doc },
-    );
-    setView("collections");
-  };
-
-  // Contextual create button shown in the navbar (New collection / New document).
-  let onCreate: (() => void) | undefined;
-  let createLabel: string | undefined;
-  if (canWrite && inCollectionList) {
-    onCreate = () => setAddNonce((n) => n + 1);
-    createLabel = "New collection";
-  } else if (canWrite && inDocumentTable) {
-    onCreate = handleNewDoc;
-    createLabel = "New document";
-  }
+    if (!token || !loaded || rooms.length === 0) return;
+    const lastId = localStorage.getItem("mongoedit:lastRoomId");
+    const target = rooms.find((r) => r._id === lastId) ?? rooms[0];
+    const view = mapViewParam(new URLSearchParams(window.location.search).get("view"));
+    router.replace(roomViewPath(target._id, view ?? "collections"));
+  }, [token, loaded, rooms, router]);
 
   if (!token) return null;
 
+  // Only the zero-cluster empty state actually renders; with clusters present
+  // the effect above redirects away.
+  if (!loaded || rooms.length > 0) return null;
+
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden">
-      <NavBarMenu
-        view={view}
-        onViewChange={handleViewChange}
-        rooms={rooms}
-        activeRoomId={activeRoomId}
-        onSelectRoom={handleSelectRoom}
-        onManageClusters={() => setManageOpen(true)}
-        search={collectionSearch}
-        onSearchChange={inCollectionList ? setCollectionSearch : undefined}
-        searchPlaceholder="Search collection…"
-        onCreate={onCreate}
-        createLabel={createLabel}
-      />
+      <NavBarMenu rooms={[]} activeRoomId={null} onManageClusters={() => setManageOpen(true)} />
 
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        {view === "collections" && (
-          <>
-            {!activeRoomId ? (
-              <EmptyClusterState onManage={() => setManageOpen(true)} />
-            ) : editing ? (
-              <DocumentEditor
-                key={`${activeRoomId}:${collection}:${editing.docId ?? "new"}`}
-                roomId={activeRoomId}
-                collection={collection ?? ""}
-                isNew={editing.mode === "new"}
-                docId={editing.docId}
-                initialDoc={editing.doc}
-                cluster={activeRoomName}
-                onClose={() => setEditing(null)}
-                onSaved={() => setEditing(null)}
-                onNavigateCluster={() => { setEditing(null); setCollection(null); }}
-                onNavigateCollection={() => setEditing(null)}
-              />
-            ) : collection ? (
-              <DocumentTable
-                roomId={activeRoomId}
-                collection={collection}
-                userRole={userRole}
-                cluster={activeRoomName}
-                onEdit={handleEditDoc}
-                onNew={handleNewDoc}
-                onNavigateCluster={() => setCollection(null)}
-              />
-            ) : (
-              <CollectionList
-                roomId={activeRoomId}
-                roomName={activeRoomName ?? undefined}
-                activeCollection={collection}
-                onSelect={handleSelectCollection}
-                userRole={userRole}
-                search={collectionSearch}
-                addSignal={addNonce}
-              />
-            )}
-          </>
-        )}
-
-        {view === "audit" && (
-          <div className="flex-1 overflow-auto bg-white">
-            <AuditViewer />
-          </div>
-        )}
-
-        {view === "charts" && <ChartListView roomId={activeRoomId} />}
-
-        {view === "drafts" && <DraftsView onContinue={handleContinueDraft} />}
+        <EmptyClusterState onManage={() => setManageOpen(true)} />
       </div>
 
       <ManageClustersModal
@@ -246,8 +75,8 @@ export default function Home() {
         onClose={() => setManageOpen(false)}
         rooms={rooms}
         reload={reload}
-        activeRoomId={activeRoomId}
-        onSelect={handleSelectRoom}
+        activeRoomId={null}
+        onSelect={(id) => router.push(roomViewPath(id, "collections"))}
       />
     </div>
   );
